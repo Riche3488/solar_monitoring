@@ -10,7 +10,7 @@ def get_generation_time() -> dict:
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
-        page.goto("https://hs3.hyundai-es.co.kr/#/login", wait_until="networkidle", timeout=30000)
+        page.goto("https://hs3.hyundai-es.co.kr/#/login", wait_until="domcontentloaded", timeout=30000)
         page.wait_for_selector('//*[@id="input-27"]', timeout=30000)
         page.fill('//*[@id="input-27"]', os.environ["HES_USERNAME"])
         page.fill('//*[@id="input-28"]', os.environ["HES_PASSWORD"])
