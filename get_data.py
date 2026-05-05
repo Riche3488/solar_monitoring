@@ -10,12 +10,13 @@ def get_generation_time() -> dict:
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
-        page.goto("https://hs3.hyundai-es.co.kr/#/login")
-        page.wait_for_selector('//*[@id="input-27"]')
+        page.goto("https://hs3.hyundai-es.co.kr/#/login", wait_until="domcontentloaded")
+        page.wait_for_selector('//*[@id="input-27"]', timeout=15000)
         page.fill('//*[@id="input-27"]', os.environ["HES_USERNAME"])
         page.fill('//*[@id="input-28"]', os.environ["HES_PASSWORD"])
+        page.wait_for_selector('//*[@id="app"]/div/div[1]/main/div/div[2]/main/div/div/div[2]/button', timeout=15000)
         page.click('//*[@id="app"]/div/div[1]/main/div/div[2]/main/div/div/div[2]/button')
-        page.wait_for_url(lambda url: "login" not in url, timeout=10000)
+        page.wait_for_url(lambda url: "login" not in url, timeout=15000)
         page.wait_for_selector(XPATH_발전소1_발전시간, timeout=10000)
 
         result = {
