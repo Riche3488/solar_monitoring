@@ -104,9 +104,9 @@ def _select_date_in_picker(page, year: int, month: int) -> None:
     page.wait_for_timeout(500)
 
 
-def _download_month(page, site_id: str, year: int, month: int, save_dir: Path) -> None:
+def _download_month(page, site_id: str, year: int, month: int, save_dir: Path, force: bool = False) -> None:
     save_path = save_dir / f"{year}-{month:02d}-01.xlsx"
-    if save_path.exists():
+    if save_path.exists() and not force:
         print(f"  [스킵] 이미 존재: {save_path.name}")
         return
 
@@ -144,6 +144,7 @@ def _download_month(page, site_id: str, year: int, month: int, save_dir: Path) -
 def get_past_excel(
     start: tuple[int, int] | None = None,
     end: tuple[int, int] | None = None,
+    force: bool = False,
 ) -> None:
     today = date.today()
     if end is None:
@@ -168,11 +169,16 @@ def get_past_excel(
             save_dir.mkdir(parents=True, exist_ok=True)
             print(f"\n--- {site_id} ({folder}) ---")
             for year, month in months:
-                _download_month(page, site_id, year, month, save_dir)
+                _download_month(page, site_id, year, month, save_dir, force=force)
 
         browser.close()
     print("\n전체 완료")
 
 
 if __name__ == "__main__":
-    get_past_excel(start=(2022, 1))
+    import sys
+    if "--current-month" in sys.argv:
+        today = date.today()
+        get_past_excel(start=(today.year, today.month), force=True)
+    else:
+        get_past_excel(start=(2022, 1))
