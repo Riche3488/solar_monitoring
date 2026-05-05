@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { getMonthlyTotals, getAnnualTotals, getLatestDay, SITE_LABELS, fmt } from '../utils/dataUtils'
+import { getMonthlyTotals, getAnnualTotals, getLatestDay, getKSTTargetDate, SITE_LABELS, fmt } from '../utils/dataUtils'
 
 const RATED_KW = 99.5
 const S = SITE_LABELS
@@ -17,7 +17,8 @@ function Card({ title, value, sub, valueClass = 'text-white' }) {
 export default function OverviewCards({ data }) {
   const monthly = useMemo(() => getMonthlyTotals(data), [data])
   const annual = useMemo(() => getAnnualTotals(data), [data])
-  const latestDay = useMemo(() => getLatestDay(data), [data])
+  const kstTarget = useMemo(() => getKSTTargetDate(), [])
+  const latestDay = useMemo(() => getLatestDay(data, kstTarget.dateStr), [data, kstTarget])
 
   const latestMonthly = monthly[monthly.length - 1]
   const curYear = annual[annual.length - 1]
@@ -35,9 +36,15 @@ export default function OverviewCards({ data }) {
   const hours8023 = kwh8023 !== null ? kwh8023 / RATED_KW : null
   const hours8024 = kwh8024 !== null ? kwh8024 / RATED_KW : null
 
-  const dayLabel = latestDay
-    ? `${latestDay.year}년 ${latestDay.month}월 ${latestDay.day}일`
-    : ''
+  const dayLabel = useMemo(() => {
+    if (!latestDay) return ''
+    const { year, month, day } = latestDay
+    const base = `${year}년 ${month}월 ${day}일`
+    if (year === kstTarget.year && month === kstTarget.month && day === kstTarget.day) return `${base} (오늘)`
+    const prev = new Date(Date.UTC(kstTarget.year, kstTarget.month - 1, kstTarget.day - 1))
+    if (year === prev.getUTCFullYear() && month === prev.getUTCMonth() + 1 && day === prev.getUTCDate()) return `${base} (어제)`
+    return base
+  }, [latestDay, kstTarget])
 
   return (
     <div className="space-y-5">

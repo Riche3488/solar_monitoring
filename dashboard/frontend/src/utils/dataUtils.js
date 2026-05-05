@@ -75,13 +75,27 @@ export function getDailyByDate(data) {
     }))
 }
 
-export function getLatestDay(data) {
+// KST 기준 표시 대상 날짜: 6시 이후면 오늘, 이전이면 어제
+export function getKSTTargetDate() {
+  const kst = new Date(Date.now() + 9 * 60 * 60 * 1000)
+  if (kst.getUTCHours() < 6) kst.setUTCDate(kst.getUTCDate() - 1)
+  const y = kst.getUTCFullYear()
+  const m = kst.getUTCMonth() + 1
+  const d = kst.getUTCDate()
+  return {
+    year: y, month: m, day: d,
+    dateStr: `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
+  }
+}
+
+export function getLatestDay(data, targetDateStr = null) {
   const byDate = {}
   for (const d of data) {
     if (d.generation_kwh === null) continue
     if (!byDate[d.date]) byDate[d.date] = { date: d.date, year: d.year, month: d.month, day: d.day, site_8023: null, site_8024: null }
     byDate[d.date][d.site_id] = d.generation_kwh
   }
+  if (targetDateStr && byDate[targetDateStr]) return byDate[targetDateStr]
   const dates = Object.keys(byDate).sort()
   return dates.length ? byDate[dates[dates.length - 1]] : null
 }

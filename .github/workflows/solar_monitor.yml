@@ -47,3 +47,20 @@ jobs:
           git add past_data/
           git diff --staged --quiet || git commit -m "data: update current month excel [skip ci]"
           git push
+
+      - name: Node.js 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: dashboard/frontend/package-lock.json
+
+      - name: 프론트엔드 의존성 설치
+        run: npm --prefix dashboard/frontend ci
+
+      - name: 대시보드 배포 (data.json 빌드 + Firebase)
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          export PATH="$PWD/dashboard/frontend/node_modules/.bin:$PATH"
+          firebase deploy --only hosting --token "$FIREBASE_TOKEN" --non-interactive
