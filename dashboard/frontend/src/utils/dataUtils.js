@@ -75,6 +75,17 @@ export function getDailyByDate(data) {
     }))
 }
 
+export function getLatestDay(data) {
+  const byDate = {}
+  for (const d of data) {
+    if (d.generation_kwh === null) continue
+    if (!byDate[d.date]) byDate[d.date] = { date: d.date, year: d.year, month: d.month, day: d.day, site_8023: null, site_8024: null }
+    byDate[d.date][d.site_id] = d.generation_kwh
+  }
+  const dates = Object.keys(byDate).sort()
+  return dates.length ? byDate[dates[dates.length - 1]] : null
+}
+
 export function computeRatioStats(dailyAll) {
   const valid = dailyAll.filter(d => d.ratio !== null)
   if (!valid.length) return { mean: 1, std: 0 }

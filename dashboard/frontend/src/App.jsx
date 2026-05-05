@@ -23,15 +23,15 @@ export default function App() {
     <div className="min-h-screen bg-gray-900 flex items-center justify-center">
       <div className="text-center">
         <div className="text-4xl mb-4">☀️</div>
-        <p className="text-gray-300 text-lg">데이터 로딩 중...</p>
+        <p className="text-gray-300">데이터 로딩 중...</p>
       </div>
     </div>
   )
 
   if (error) return (
-    <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+    <div className="min-h-screen bg-gray-900 flex items-center justify-center px-4">
       <div className="text-center space-y-2">
-        <p className="text-red-400 text-lg">데이터를 불러올 수 없습니다</p>
+        <p className="text-red-400">데이터를 불러올 수 없습니다</p>
         <p className="text-gray-500 text-sm">{error}</p>
         <p className="text-gray-500 text-sm mt-3">
           <code className="bg-gray-800 px-2 py-1 rounded text-xs">python scripts/build_data.py</code> 를 먼저 실행하세요.
@@ -42,25 +42,25 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100">
-      <header className="bg-gray-800 border-b border-gray-700 px-6 py-4">
+      <header className="bg-gray-800 border-b border-gray-700 px-4 sm:px-6 py-3 sm:py-4">
         <div className="max-w-7xl mx-auto">
-          <h1 className="text-lg font-bold text-white">☀️ 태양광 발전 모니터링</h1>
+          <h1 className="text-base sm:text-lg font-bold text-white">☀️ 태양광 발전 모니터링</h1>
           <p className="text-gray-400 text-xs mt-0.5">
             {SITE_LABELS.site_8023} · {SITE_LABELS.site_8024} · {data.length.toLocaleString()}개 레코드
           </p>
         </div>
       </header>
 
-      <nav className="bg-gray-800 border-b border-gray-700 px-6">
-        <div className="max-w-7xl mx-auto flex space-x-1 overflow-x-auto">
+      <nav className="bg-gray-800 border-b border-gray-700 px-2 sm:px-6">
+        <div className="max-w-7xl mx-auto flex overflow-x-auto scrollbar-hide">
           {TABS.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors border-b-2 ${
+              className={`flex-1 sm:flex-none px-3 sm:px-4 py-3 text-xs sm:text-sm font-medium whitespace-nowrap transition-colors border-b-2 ${
                 activeTab === tab.id
                   ? 'border-blue-500 text-blue-400'
-                  : 'border-transparent text-gray-400 hover:text-gray-200'
+                  : 'border-transparent text-gray-400 active:text-gray-200'
               }`}
             >
               {tab.label}
@@ -69,7 +69,7 @@ export default function App() {
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+      <main className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
         {activeTab === 'overview' && <OverviewCards data={data} />}
         {activeTab === 'daily' && <DailyComparison data={data} />}
         {activeTab === 'monthly' && <MonthlyTrend data={data} />}
