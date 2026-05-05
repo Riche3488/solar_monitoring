@@ -1,0 +1,49 @@
+name: Deploy to Firebase Hosting
+
+# 프론트엔드 코드 변경 시에만 트리거 (past_data 변경은 daily_update.yml 이 처리)
+on:
+  push:
+    branches: [main]
+    paths:
+      - "dashboard/frontend/src/**"
+      - "dashboard/frontend/index.html"
+      - "dashboard/frontend/package.json"
+      - "dashboard/frontend/vite.config.js"
+      - "scripts/build_data.py"
+      - "firebase.json"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    # [skip ci] 커밋(daily_update 봇 커밋)은 무시
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: dashboard/frontend/package-lock.json
+
+      - name: Generate data.json from xlsx
+        run: python scripts/build_data.py
+
+      - name: Install frontend dependencies
+        run: npm --prefix dashboard/frontend ci
+
+      - name: Build React app
+        run: npm --prefix dashboard/frontend run build
+
+      - name: Deploy to Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          channelId: live
+          projectId: solar-monitoring-eb12a

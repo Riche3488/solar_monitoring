@@ -1,0 +1,8 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./past_data:/app/past_data
+    restart: unless-stopped

@@ -1,1 +1,7 @@
 .env
+__pycache__/
+*.pyc
+dashboard/frontend/node_modules/
+dashboard/frontend/dist/
+dashboard/frontend/public/data.json
+.firebase/
