@@ -77,9 +77,8 @@ jobs:
 
       # ── Firebase 배포 ─────────────────────────────────────────────────
       - name: Deploy to Firebase Hosting
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          channelId: live
-          projectId: solar-monitoring-eb12a
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          export PATH="$PWD/dashboard/frontend/node_modules/.bin:$PATH"
+          firebase deploy --only hosting --token "$FIREBASE_TOKEN" --non-interactive
