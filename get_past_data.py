@@ -59,14 +59,34 @@ def _login(page) -> None:
     print("[1] 로그인 페이지 이동 중...")
     page.goto("https://hs3.hyundai-es.co.kr/#/login", wait_until="domcontentloaded")
     page.wait_for_selector(XPATH_LOGIN_ID, timeout=15000)
-    print("[2] 로그인 폼 감지 → 아이디/비밀번호 입력")
-    page.fill(XPATH_LOGIN_ID, os.environ["HES_USERNAME"])
-    page.fill(XPATH_LOGIN_PW, os.environ["HES_PASSWORD"])
-    print("[3] 로그인 버튼 클릭 (force=True)")
-    # v-overlay가 포인터 이벤트를 차단하므로 force=True로 dispatchEvent를 버튼에 직접 전달
-    page.locator(f'xpath={XPATH_LOGIN_BTN}').click(force=True)
-    # wait_for_url은 SPA 해시 라우팅에서 네비게이션 이벤트를 놓칠 수 있어
-    # 로그인 폼 인풋이 DOM에서 사라지는 것으로 성공 감지
+    page.screenshot(path="/tmp/debug_01_page_loaded.png")
+
+    # v-overlay 다이얼로그 닫기 시도 (공지사항 등 상시 팝업)
+    if page.locator('.v-overlay--active').count() > 0:
+        print("[오버레이] 감지 → 버튼 클릭 또는 ESC로 닫기 시도")
+        try:
+            page.locator('.v-overlay--active button').first.click(timeout=3000)
+            page.wait_for_selector('.v-overlay--active', state='hidden', timeout=5000)
+            print("[오버레이] 버튼 클릭으로 닫힘")
+        except Exception:
+            page.keyboard.press("Escape")
+            try:
+                page.wait_for_selector('.v-overlay--active', state='hidden', timeout=5000)
+                print("[오버레이] ESC로 닫힘")
+            except Exception:
+                print("[오버레이] 닫기 실패 — 계속 진행")
+        page.screenshot(path="/tmp/debug_02_overlay_dismissed.png")
+
+    print("[2] 아이디/비밀번호 입력 (keyboard.type)")
+    # fill()은 Vue 반응형 모델을 갱신하지 못할 수 있어 keyboard.type() 사용
+    page.click(f'xpath={XPATH_LOGIN_ID}', force=True)
+    page.keyboard.type(os.environ["HES_USERNAME"])
+    page.click(f'xpath={XPATH_LOGIN_PW}', force=True)
+    page.keyboard.type(os.environ["HES_PASSWORD"])
+    page.screenshot(path="/tmp/debug_03_form_filled.png")
+
+    print("[3] 로그인 버튼 클릭")
+    page.click(f'xpath={XPATH_LOGIN_BTN}')
     page.wait_for_selector(XPATH_LOGIN_ID, state='detached', timeout=30000)
     print(f"[4] 로그인 완료 → {page.url}")
 

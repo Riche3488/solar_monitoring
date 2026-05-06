@@ -36,11 +36,11 @@ jobs:
           HES_PASSWORD: ${{ secrets.HES_PASSWORD }}
         run: python scripts/daily_update.py
 
-      - name: Upload debug screenshot on failure
+      - name: Upload debug screenshots on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: debug-screenshot
+          name: debug-screenshots
           path: /tmp/debug_*.png
           if-no-files-found: ignore
 
