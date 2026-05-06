@@ -61,14 +61,10 @@ def _login(page) -> None:
     print("[2] 로그인 폼 감지 → 아이디/비밀번호 입력")
     page.fill(XPATH_LOGIN_ID, os.environ["HES_USERNAME"])
     page.fill(XPATH_LOGIN_PW, os.environ["HES_PASSWORD"])
-    # v-overlay가 버튼을 가리는 경우가 있어 오버레이 해제 후 Enter로 제출
-    try:
-        page.wait_for_selector('.v-overlay--active', state='hidden', timeout=5000)
-    except Exception:
-        pass
     print("[3] 로그인 (Enter 키)")
-    page.keyboard.press("Enter")
-    page.wait_for_url(lambda url: "login" not in url, timeout=15000)
+    # locator.press()는 해당 요소에 포커스를 맞추고 Enter 전송 — v-overlay 포인터 차단 우회
+    page.locator(f'xpath={XPATH_LOGIN_PW}').press("Enter")
+    page.wait_for_url(lambda url: "login" not in url, timeout=30000)
     print(f"[4] 로그인 완료 → {page.url}")
 
 
