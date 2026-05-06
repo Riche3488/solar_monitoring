@@ -107,10 +107,11 @@ export function getLatestDay(data, targetDateStr = null) {
   return dates.length ? byDate[dates[dates.length - 1]] : null
 }
 
-export function getLastNDays(data, n = 10) {
+export function getLastNDays(data, n = 10, maxDateStr = null) {
   const byDate = {}
   for (const d of data) {
     if (d.generation_kwh === null) continue
+    if (maxDateStr && d.date > maxDateStr) continue
     if (!byDate[d.date]) byDate[d.date] = { date: d.date, year: d.year, month: d.month, day: d.day, site_8023: null, site_8024: null }
     byDate[d.date][d.site_id] = d.generation_kwh
   }

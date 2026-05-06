@@ -18,7 +18,7 @@ export default function OverviewCards({ data }) {
   const annual = useMemo(() => getAnnualTotals(data), [data])
   const kstTarget = useMemo(() => getKSTTargetDate(), [])
   const latestDay = useMemo(() => getLatestDay(data, kstTarget.dateStr), [data, kstTarget])
-  const last10Days = useMemo(() => getLastNDays(data, 10), [data])
+  const last10Days = useMemo(() => getLastNDays(data, 10, kstTarget.dateStr), [data, kstTarget])
 
   const latestMonthly = monthly[monthly.length - 1]
   const curYear = annual[annual.length - 1]
