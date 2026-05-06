@@ -3,7 +3,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer, ReferenceLine,
 } from 'recharts'
-import { getDailyForMonth, getAvailableMonths, computeRatioStats, SITE_LABELS, SITE_COLORS, fmt } from '../utils/dataUtils'
+import { getDailyForMonth, getAvailableMonths, computeRatioStats, getKSTTargetDate, SITE_LABELS, SITE_COLORS, fmt } from '../utils/dataUtils'
 
 const S = SITE_LABELS
 const C = SITE_COLORS
@@ -16,9 +16,16 @@ const TOOLTIP_STYLE = {
 export default function DailyComparison({ data }) {
   const months = useMemo(() => getAvailableMonths(data), [data])
   const [selected, setSelected] = useState(() => months[months.length - 1] ?? '')
+  const kstTarget = useMemo(() => getKSTTargetDate(), [])
 
   const [year, month] = selected ? selected.split('-').map(Number) : [0, 0]
-  const daily = useMemo(() => getDailyForMonth(data, year, month), [data, year, month])
+  const daily = useMemo(() => {
+    const raw = getDailyForMonth(data, year, month)
+    if (year === kstTarget.year && month === kstTarget.month) {
+      return raw.filter(d => d.day <= kstTarget.day)
+    }
+    return raw
+  }, [data, year, month, kstTarget])
   const { mean } = useMemo(() => computeRatioStats(daily), [daily])
 
   const CustomDot = (props) => {

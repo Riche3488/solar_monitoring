@@ -9,6 +9,7 @@ import re
 import sys
 import zipfile
 import xml.etree.ElementTree as ET
+from datetime import date as _date
 from pathlib import Path
 
 BASE_DIR = Path(__file__).parent.parent
@@ -76,6 +77,7 @@ def _parse_file(site_id: str, year: int, month: int, path: Path) -> list:
         print(f"  Warning: {path.name}: {e}", file=sys.stderr)
         return []
 
+    today = _date.today()
     result = []
     for row in rows[2:]:  # row[0]=헤더, row[1]=월평균
         if not row or len(row) < 3:
@@ -91,6 +93,11 @@ def _parse_file(site_id: str, year: int, month: int, path: Path) -> list:
         if gen is None and hours is None:
             continue
         day = int(m.group(1))
+        try:
+            if _date(year, month, day) > today:
+                continue
+        except ValueError:
+            continue
         result.append({
             "date": f"{year:04d}-{month:02d}-{day:02d}",
             "year": year,

@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
-import { getMonthlyTotals, getAnnualTotals, getLatestDay, getKSTTargetDate, SITE_LABELS, fmt } from '../utils/dataUtils'
+import { getMonthlyTotals, getAnnualTotals, getLatestDay, getLastNDays, getKSTTargetDate, SITE_LABELS, fmt } from '../utils/dataUtils'
 
-const RATED_KW = 99.5
 const S = SITE_LABELS
 
 function Card({ title, value, sub, valueClass = 'text-white' }) {
@@ -19,6 +18,7 @@ export default function OverviewCards({ data }) {
   const annual = useMemo(() => getAnnualTotals(data), [data])
   const kstTarget = useMemo(() => getKSTTargetDate(), [])
   const latestDay = useMemo(() => getLatestDay(data, kstTarget.dateStr), [data, kstTarget])
+  const last10Days = useMemo(() => getLastNDays(data, 10), [data])
 
   const latestMonthly = monthly[monthly.length - 1]
   const curYear = annual[annual.length - 1]
@@ -33,8 +33,10 @@ export default function OverviewCards({ data }) {
 
   const kwh8023 = latestDay?.site_8023 ?? null
   const kwh8024 = latestDay?.site_8024 ?? null
-  const hours8023 = kwh8023 !== null ? kwh8023 / RATED_KW : null
-  const hours8024 = kwh8024 !== null ? kwh8024 / RATED_KW : null
+  const hours8023 = latestDay?.hours_8023 ?? null
+  const hours8024 = latestDay?.hours_8024 ?? null
+
+  const todayStr = `${kstTarget.year}년 ${kstTarget.month}월 ${kstTarget.day}일`
 
   const dayLabel = useMemo(() => {
     if (!latestDay) return ''
@@ -46,13 +48,18 @@ export default function OverviewCards({ data }) {
     return base
   }, [latestDay, kstTarget])
 
+  const isLatestToday = latestDay?.year === kstTarget.year
+    && latestDay?.month === kstTarget.month
+    && latestDay?.day === kstTarget.day
+
   return (
     <div className="space-y-5">
-      {dayLabel && (
-        <p className="text-gray-400 text-sm">
-          최신 데이터: <span className="text-white font-medium">{dayLabel}</span>
-        </p>
-      )}
+      <p className="text-gray-400 text-sm">
+        오늘: <span className="text-white font-medium">{todayStr}</span>
+        {dayLabel && !isLatestToday && (
+          <span className="ml-3 text-gray-500">최신 데이터: {dayLabel}</span>
+        )}
+      </p>
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4">
         <Card
@@ -87,31 +94,33 @@ export default function OverviewCards({ data }) {
 
       <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-700">
-          <h2 className="font-semibold text-white text-sm sm:text-base">최근 12개월 발전량</h2>
+          <h2 className="font-semibold text-white text-sm sm:text-base">최근 10일 발전량</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs sm:text-sm">
             <thead>
               <tr className="text-gray-400 text-xs border-b border-gray-700">
-                <th className="px-3 sm:px-5 py-3 text-left">월</th>
-                <th className="px-3 sm:px-5 py-3 text-right">{S.site_8023}</th>
-                <th className="px-3 sm:px-5 py-3 text-right">{S.site_8024}</th>
+                <th className="px-3 sm:px-5 py-3 text-left">날짜</th>
+                <th className="px-3 sm:px-5 py-3 text-right">{S.site_8023} (kWh)</th>
+                <th className="px-3 sm:px-5 py-3 text-right">{S.site_8024} (kWh)</th>
                 <th className="px-3 sm:px-5 py-3 text-right">비율</th>
-                <th className="hidden sm:table-cell px-5 py-3 text-right">합계 (kWh)</th>
               </tr>
             </thead>
             <tbody>
-              {monthly.slice(-12).reverse().map(row => {
+              {last10Days.map(row => {
                 const abnormal = row.ratio !== null && Math.abs(row.ratio - 1) > 0.15
+                const isToday = row.year === kstTarget.year && row.month === kstTarget.month && row.day === kstTarget.day
                 return (
-                  <tr key={row.key} className="border-b border-gray-700/40 hover:bg-gray-700/30 transition">
-                    <td className="px-3 sm:px-5 py-2 text-gray-300 whitespace-nowrap">{row.year}년 {row.month}월</td>
-                    <td className="px-3 sm:px-5 py-2 text-right text-blue-300">{fmt(row.site_8023)}</td>
-                    <td className="px-3 sm:px-5 py-2 text-right text-orange-300">{fmt(row.site_8024)}</td>
+                  <tr key={row.date} className={`border-b border-gray-700/40 hover:bg-gray-700/30 transition ${isToday ? 'bg-gray-700/20' : ''}`}>
+                    <td className="px-3 sm:px-5 py-2 text-gray-300 whitespace-nowrap">
+                      {row.month}월 {row.day}일
+                      {isToday && <span className="ml-1 text-gray-500 text-xs">(오늘)</span>}
+                    </td>
+                    <td className="px-3 sm:px-5 py-2 text-right text-blue-300">{fmt(row.site_8023, 1)}</td>
+                    <td className="px-3 sm:px-5 py-2 text-right text-orange-300">{fmt(row.site_8024, 1)}</td>
                     <td className={`px-3 sm:px-5 py-2 text-right font-medium ${row.ratio === null ? 'text-gray-500' : abnormal ? 'text-red-400' : 'text-green-400'}`}>
                       {row.ratio !== null ? `${fmt(row.ratio * 100, 1)}%` : '-'}
                     </td>
-                    <td className="hidden sm:table-cell px-5 py-2 text-right text-gray-300">{fmt(row.site_8023 + row.site_8024)}</td>
                   </tr>
                 )
               })}

@@ -16,8 +16,12 @@ export function getMonthlyTotals(data) {
   for (const d of data) {
     if (d.generation_kwh === null) continue
     const key = `${d.year}-${String(d.month).padStart(2, '0')}`
-    if (!map[key]) map[key] = { key, year: d.year, month: d.month, site_8023: 0, site_8024: 0 }
+    if (!map[key]) map[key] = { key, year: d.year, month: d.month, site_8023: 0, site_8024: 0, hours_8023: null, hours_8024: null }
     map[key][d.site_id] = (map[key][d.site_id] || 0) + d.generation_kwh
+    if (d.generation_hours !== null) {
+      const hKey = 'hours_' + d.site_id.replace('site_', '')
+      map[key][hKey] = (map[key][hKey] ?? 0) + d.generation_hours
+    }
   }
   return Object.values(map)
     .sort((a, b) => a.key.localeCompare(b.key))
@@ -92,12 +96,34 @@ export function getLatestDay(data, targetDateStr = null) {
   const byDate = {}
   for (const d of data) {
     if (d.generation_kwh === null) continue
-    if (!byDate[d.date]) byDate[d.date] = { date: d.date, year: d.year, month: d.month, day: d.day, site_8023: null, site_8024: null }
+    if (!byDate[d.date]) byDate[d.date] = { date: d.date, year: d.year, month: d.month, day: d.day, site_8023: null, site_8024: null, hours_8023: null, hours_8024: null }
     byDate[d.date][d.site_id] = d.generation_kwh
+    if (d.generation_hours !== null) {
+      byDate[d.date]['hours_' + d.site_id.replace('site_', '')] = d.generation_hours
+    }
   }
   if (targetDateStr && byDate[targetDateStr]) return byDate[targetDateStr]
   const dates = Object.keys(byDate).sort()
   return dates.length ? byDate[dates[dates.length - 1]] : null
+}
+
+export function getLastNDays(data, n = 10) {
+  const byDate = {}
+  for (const d of data) {
+    if (d.generation_kwh === null) continue
+    if (!byDate[d.date]) byDate[d.date] = { date: d.date, year: d.year, month: d.month, day: d.day, site_8023: null, site_8024: null }
+    byDate[d.date][d.site_id] = d.generation_kwh
+  }
+  return Object.values(byDate)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(-n)
+    .reverse()
+    .map(d => ({
+      ...d,
+      ratio: d.site_8023 !== null && d.site_8024 !== null && d.site_8024 > 0
+        ? d.site_8023 / d.site_8024
+        : null,
+    }))
 }
 
 export function computeRatioStats(dailyAll) {
