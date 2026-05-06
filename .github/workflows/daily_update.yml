@@ -36,6 +36,14 @@ jobs:
           HES_PASSWORD: ${{ secrets.HES_PASSWORD }}
         run: python scripts/daily_update.py
 
+      - name: Upload debug screenshot on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-screenshot
+          path: /tmp/debug_*.png
+          if-no-files-found: ignore
+
       # ── xlsx 변경분 커밋 (없으면 스킵) ────────────────────────────────
       - name: Commit updated xlsx
         run: |

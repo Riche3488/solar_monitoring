@@ -65,7 +65,9 @@ def _login(page) -> None:
     print("[3] 로그인 버튼 클릭 (force=True)")
     # v-overlay가 포인터 이벤트를 차단하므로 force=True로 dispatchEvent를 버튼에 직접 전달
     page.locator(f'xpath={XPATH_LOGIN_BTN}').click(force=True)
-    page.wait_for_url(lambda url: "login" not in url, timeout=30000)
+    # wait_for_url은 SPA 해시 라우팅에서 네비게이션 이벤트를 놓칠 수 있어
+    # 로그인 폼 인풋이 DOM에서 사라지는 것으로 성공 감지
+    page.wait_for_selector(XPATH_LOGIN_ID, state='detached', timeout=30000)
     print(f"[4] 로그인 완료 → {page.url}")
 
 
@@ -162,7 +164,12 @@ def get_past_excel(
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
-        _login(page)
+        try:
+            _login(page)
+        except Exception:
+            page.screenshot(path="/tmp/debug_login.png")
+            print(f"[디버그] 스크린샷 저장: /tmp/debug_login.png  현재 URL: {page.url}")
+            raise
 
         for site_id, folder in SITES.items():
             save_dir = BASE_DIR / folder
