@@ -11,7 +11,6 @@ SITES = {
 
 XPATH_LOGIN_ID = '//*[@id="input-27"]'
 XPATH_LOGIN_PW = '//*[@id="input-28"]'
-XPATH_LOGIN_BTN = '/html/body/div/div/div[1]/main/div/div[2]/main/div/div/div[2]/div[5]/div/button/span'
 XPATH_DATE_INPUT = '/html/body/div/div[1]/div[1]/main/div/div[2]/div/div[3]/div/div[2]/div/div/div/div/div[1]/div[2]/div[3]/div[2]/div/div/div[2]/div/div/input'
 XPATH_MONTHLY_TAB = '//*[@id="app"]/div[1]/div[1]/main/div/div[2]/div/div[3]/div/div[2]/div/div/div/div/div[1]/div[2]/div[1]/div/div/div[2]/div/div[3]'
 XPATH_EXCEL_BTN = '//*[@id="app"]/div[1]/div[1]/main/div/div[2]/div/div[3]/div/div[2]/div/div/div/div/div[1]/div[2]/div[3]/button[1]'
@@ -62,9 +61,13 @@ def _login(page) -> None:
     print("[2] 로그인 폼 감지 → 아이디/비밀번호 입력")
     page.fill(XPATH_LOGIN_ID, os.environ["HES_USERNAME"])
     page.fill(XPATH_LOGIN_PW, os.environ["HES_PASSWORD"])
-    page.wait_for_selector(f'xpath={XPATH_LOGIN_BTN}', timeout=15000)
-    print("[3] 로그인 버튼 클릭")
-    page.click(f'xpath={XPATH_LOGIN_BTN}')
+    # v-overlay가 버튼을 가리는 경우가 있어 오버레이 해제 후 Enter로 제출
+    try:
+        page.wait_for_selector('.v-overlay--active', state='hidden', timeout=5000)
+    except Exception:
+        pass
+    print("[3] 로그인 (Enter 키)")
+    page.keyboard.press("Enter")
     page.wait_for_url(lambda url: "login" not in url, timeout=15000)
     print(f"[4] 로그인 완료 → {page.url}")
 

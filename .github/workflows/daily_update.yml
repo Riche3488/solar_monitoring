@@ -2,7 +2,7 @@ name: Daily Data Update & Deploy
 
 on:
   schedule:
-    - cron: '0 11 * * *'   # 매일 20:00 KST (UTC+9 → 11:00 UTC)
+    - cron: '0 10 * * *'   # 매일 19:00 KST (UTC+9 → 10:00 UTC)
   workflow_dispatch:         # 수동 실행
 
 jobs:
