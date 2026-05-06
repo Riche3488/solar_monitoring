@@ -11,6 +11,7 @@ SITES = {
 
 XPATH_LOGIN_ID = '//*[@id="input-27"]'
 XPATH_LOGIN_PW = '//*[@id="input-28"]'
+XPATH_LOGIN_BTN = '/html/body/div/div/div[1]/main/div/div[2]/main/div/div/div[2]/div[5]/div/button/span'
 XPATH_DATE_INPUT = '/html/body/div/div[1]/div[1]/main/div/div[2]/div/div[3]/div/div[2]/div/div/div/div/div[1]/div[2]/div[3]/div[2]/div/div/div[2]/div/div/input'
 XPATH_MONTHLY_TAB = '//*[@id="app"]/div[1]/div[1]/main/div/div[2]/div/div[3]/div/div[2]/div/div/div/div/div[1]/div[2]/div[1]/div/div/div[2]/div/div[3]'
 XPATH_EXCEL_BTN = '//*[@id="app"]/div[1]/div[1]/main/div/div[2]/div/div[3]/div/div[2]/div/div/div/div/div[1]/div[2]/div[3]/button[1]'
@@ -61,9 +62,9 @@ def _login(page) -> None:
     print("[2] 로그인 폼 감지 → 아이디/비밀번호 입력")
     page.fill(XPATH_LOGIN_ID, os.environ["HES_USERNAME"])
     page.fill(XPATH_LOGIN_PW, os.environ["HES_PASSWORD"])
-    print("[3] 로그인 (Enter 키)")
-    # locator.press()는 해당 요소에 포커스를 맞추고 Enter 전송 — v-overlay 포인터 차단 우회
-    page.locator(f'xpath={XPATH_LOGIN_PW}').press("Enter")
+    print("[3] 로그인 버튼 클릭 (force=True)")
+    # v-overlay가 포인터 이벤트를 차단하므로 force=True로 dispatchEvent를 버튼에 직접 전달
+    page.locator(f'xpath={XPATH_LOGIN_BTN}').click(force=True)
     page.wait_for_url(lambda url: "login" not in url, timeout=30000)
     print(f"[4] 로그인 완료 → {page.url}")
 
