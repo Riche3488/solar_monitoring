@@ -11,6 +11,7 @@ on:
       - "dashboard/frontend/vite.config.js"
       - "scripts/build_data.py"
       - "firebase.json"
+      - ".github/workflows/firebase-deploy.yml"
   workflow_dispatch:
 
 jobs:
