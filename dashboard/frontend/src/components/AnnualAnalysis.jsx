@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer, Cell,
+  Tooltip, Legend, ResponsiveContainer, Cell, LabelList,
 } from 'recharts'
 import { getAnnualTotals, getMonthlyTotals, SITE_LABELS, SITE_COLORS, fmt } from '../utils/dataUtils'
 
@@ -13,8 +13,27 @@ const TOOLTIP_STYLE = {
   labelStyle: { color: '#e5e7eb' },
 }
 
+function HoursBarLabel({ x, y, width, value, index, annualData, yoyKey }) {
+  const row = annualData?.[index]
+  const yoy = row?.[yoyKey] ?? null
+  const yoyColor = yoy === null ? '#9ca3af' : yoy >= 0 ? '#22c55e' : '#ef4444'
+  return (
+    <text textAnchor="middle" fontSize={10}>
+      <tspan x={x + width / 2} y={y - 18} fill="#e5e7eb">
+        {value != null ? `${value.toFixed(2)}h` : ''}
+      </tspan>
+      {yoy !== null && (
+        <tspan x={x + width / 2} y={y - 6} fill={yoyColor}>
+          {`(${yoy > 0 ? '+' : ''}${fmt(yoy, 1)}%)`}
+        </tspan>
+      )}
+    </text>
+  )
+}
+
 export default function AnnualAnalysis({ data }) {
   const [sameMonth, setSameMonth] = useState(6)
+  const [siteTab, setSiteTab] = useState('site_8023')
 
   const annual = useMemo(() => getAnnualTotals(data), [data])
   const monthly = useMemo(() => getMonthlyTotals(data), [data])
@@ -24,15 +43,13 @@ export default function AnnualAnalysis({ data }) {
       const prev = annual[i - 1]
       return {
         ...row,
-        yoy8023: prev && prev.site_8023 > 0 ? ((row.site_8023 - prev.site_8023) / prev.site_8023) * 100 : null,
-        yoy8024: prev && prev.site_8024 > 0 ? ((row.site_8024 - prev.site_8024) / prev.site_8024) * 100 : null,
+        yoy8023: prev && prev.avg_hours_8023 > 0 ? ((row.avg_hours_8023 - prev.avg_hours_8023) / prev.avg_hours_8023) * 100 : null,
+        yoy8024: prev && prev.avg_hours_8024 > 0 ? ((row.avg_hours_8024 - prev.avg_hours_8024) / prev.avg_hours_8024) * 100 : null,
       }
     }), [annual])
 
   const sameMonthData = useMemo(() =>
     monthly.filter(d => d.month === sameMonth), [monthly, sameMonth])
-
-  const yoyValid = annualWithYoY.filter(d => d.yoy8023 !== null)
 
   return (
     <div className="space-y-6">
@@ -66,28 +83,59 @@ export default function AnnualAnalysis({ data }) {
         </ResponsiveContainer>
       </div>
 
-      {yoyValid.length > 0 && (
-        <div className="bg-gray-800 rounded-xl border border-gray-700 p-5">
-          <h2 className="font-semibold text-white mb-4">전년 대비 발전량 변화율 — {S.site_8023} (%)</h2>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={yoyValid} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis dataKey="year" tick={{ fill: '#9ca3af', fontSize: 11 }} />
-              <YAxis tick={{ fill: '#9ca3af', fontSize: 11 }} unit="%" />
-              <Tooltip
-                {...TOOLTIP_STYLE}
-                formatter={v => [`${v > 0 ? '+' : ''}${fmt(v, 1)}%`, `${S.site_8023} 전년비`]}
-                labelFormatter={y => `${y}년`}
-              />
-              <Bar dataKey="yoy8023" radius={[3, 3, 0, 0]}>
-                {yoyValid.map((entry, i) => (
-                  <Cell key={i} fill={entry.yoy8023 >= 0 ? '#22c55e' : '#ef4444'} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+      <div className="bg-gray-800 rounded-xl border border-gray-700 p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-semibold text-white">일평균 발전시간 연도별 추이</h2>
+          <div className="flex gap-1">
+            {['site_8023', 'site_8024'].map(s => (
+              <button
+                key={s}
+                onClick={() => setSiteTab(s)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                  siteTab === s
+                    ? s === 'site_8023' ? 'bg-blue-600 text-white' : 'bg-orange-500 text-white'
+                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                }`}
+              >
+                {S[s]}
+              </button>
+            ))}
+          </div>
         </div>
-      )}
+        <ResponsiveContainer width="100%" height={260}>
+          <BarChart data={annualWithYoY} margin={{ top: 36, right: 20, left: 0, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+            <XAxis dataKey="year" tick={{ fill: '#9ca3af', fontSize: 11 }} />
+            <YAxis tick={{ fill: '#9ca3af', fontSize: 11 }} tickFormatter={v => `${v.toFixed(1)}h`} domain={[0, 'auto']} />
+            <Tooltip
+              {...TOOLTIP_STYLE}
+              formatter={(v, _, props) => {
+                const row = props.payload
+                const yoy = siteTab === 'site_8023' ? row?.yoy8023 : row?.yoy8024
+                const yoyStr = yoy != null ? ` (${yoy > 0 ? '+' : ''}${fmt(yoy, 1)}%)` : ''
+                return [`${v != null ? v.toFixed(2) : '-'}h${yoyStr}`, '일평균 발전시간']
+              }}
+              labelFormatter={y => `${y}년`}
+            />
+            <Bar
+              dataKey={siteTab === 'site_8023' ? 'avg_hours_8023' : 'avg_hours_8024'}
+              fill={C[siteTab]}
+              radius={[3, 3, 0, 0]}
+            >
+              <LabelList
+                dataKey={siteTab === 'site_8023' ? 'avg_hours_8023' : 'avg_hours_8024'}
+                content={(props) => (
+                  <HoursBarLabel
+                    {...props}
+                    annualData={annualWithYoY}
+                    yoyKey={siteTab === 'site_8023' ? 'yoy8023' : 'yoy8024'}
+                  />
+                )}
+              />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
 
       <div className="bg-gray-800 rounded-xl border border-gray-700 p-5">
         <div className="flex items-center justify-between mb-4">
@@ -132,9 +180,11 @@ export default function AnnualAnalysis({ data }) {
               <tr className="text-gray-400 text-xs border-b border-gray-700">
                 <th className="px-5 py-3 text-left">연도</th>
                 <th className="px-5 py-3 text-right">{S.site_8023} (kWh)</th>
-                <th className="px-5 py-3 text-right">전년비</th>
+                <th className="px-5 py-3 text-right">일평균 발전시간</th>
+                <th className="px-5 py-3 text-right">전년비 (발전시간)</th>
                 <th className="px-5 py-3 text-right">{S.site_8024} (kWh)</th>
-                <th className="px-5 py-3 text-right">전년비</th>
+                <th className="px-5 py-3 text-right">일평균 발전시간</th>
+                <th className="px-5 py-3 text-right">전년비 (발전시간)</th>
                 <th className="px-5 py-3 text-right">비율</th>
                 <th className="px-5 py-3 text-right">데이터</th>
               </tr>
@@ -144,10 +194,12 @@ export default function AnnualAnalysis({ data }) {
                 <tr key={row.year} className="border-b border-gray-700/40 hover:bg-gray-700/30 transition">
                   <td className="px-5 py-2.5 font-medium text-white">{row.year}년</td>
                   <td className="px-5 py-2.5 text-right text-blue-300">{fmt(row.site_8023)}</td>
+                  <td className="px-5 py-2.5 text-right text-gray-300">{row.avg_hours_8023 !== null ? `${fmt(row.avg_hours_8023, 1)}h` : '-'}</td>
                   <td className={`px-5 py-2.5 text-right font-medium ${row.yoy8023 === null ? 'text-gray-500' : row.yoy8023 >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                     {row.yoy8023 !== null ? `${row.yoy8023 > 0 ? '+' : ''}${fmt(row.yoy8023, 1)}%` : '-'}
                   </td>
                   <td className="px-5 py-2.5 text-right text-orange-300">{fmt(row.site_8024)}</td>
+                  <td className="px-5 py-2.5 text-right text-gray-300">{row.avg_hours_8024 !== null ? `${fmt(row.avg_hours_8024, 1)}h` : '-'}</td>
                   <td className={`px-5 py-2.5 text-right font-medium ${row.yoy8024 === null ? 'text-gray-500' : row.yoy8024 >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                     {row.yoy8024 !== null ? `${row.yoy8024 > 0 ? '+' : ''}${fmt(row.yoy8024, 1)}%` : '-'}
                   </td>

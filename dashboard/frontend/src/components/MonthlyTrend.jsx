@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer,
+  Tooltip, Legend, ResponsiveContainer, ReferenceLine,
 } from 'recharts'
 import { getMonthlyTotals, SITE_LABELS, SITE_COLORS, fmt } from '../utils/dataUtils'
 
@@ -111,6 +111,7 @@ export default function MonthlyTrend({ data }) {
               formatter={v => [v !== null ? fmt(v, 4) : '-', `비율 (${S.site_8023}/${S.site_8024})`]}
               labelFormatter={labelFormatter}
             />
+            <ReferenceLine y={1} stroke="#6b7280" strokeDasharray="4 4" label={{ value: '1.0', fill: '#6b7280', fontSize: 11 }} />
             <Line
               type="monotone"
               dataKey="ratio"

@@ -33,14 +33,21 @@ export function getAnnualTotals(data) {
   for (const d of data) {
     if (d.generation_kwh === null) continue
     const y = d.year
-    if (!map[y]) map[y] = { year: y, site_8023: 0, site_8024: 0, _months: new Set() }
+    if (!map[y]) map[y] = { year: y, site_8023: 0, site_8024: 0, hours_8023: 0, hours_8024: 0, hdays_8023: 0, hdays_8024: 0, _months: new Set() }
     map[y][d.site_id] = (map[y][d.site_id] || 0) + d.generation_kwh
+    if (d.generation_hours !== null) {
+      const suf = d.site_id.replace('site_', '')
+      map[y]['hours_' + suf] = (map[y]['hours_' + suf] || 0) + d.generation_hours
+      map[y]['hdays_' + suf] = (map[y]['hdays_' + suf] || 0) + 1
+    }
     map[y]._months.add(d.month)
   }
   return Object.values(map)
     .sort((a, b) => a.year - b.year)
-    .map(({ _months, ...r }) => ({
+    .map(({ _months, hdays_8023, hdays_8024, ...r }) => ({
       ...r,
+      avg_hours_8023: hdays_8023 > 0 ? r.hours_8023 / hdays_8023 : null,
+      avg_hours_8024: hdays_8024 > 0 ? r.hours_8024 / hdays_8024 : null,
       months_count: _months.size,
       ratio: r.site_8024 > 0 ? r.site_8023 / r.site_8024 : null,
     }))

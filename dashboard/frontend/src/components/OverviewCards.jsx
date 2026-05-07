@@ -74,22 +74,6 @@ export default function OverviewCards({ data }) {
           sub={hours8024 !== null ? `발전시간 ${fmt(hours8024, 1)}h` : undefined}
           valueClass="text-orange-400"
         />
-        <Card
-          title={`이번 달 비율${latestMonthly ? ` · ${latestMonthly.year}년 ${latestMonthly.month}월` : ''}`}
-          value={latestMonthly?.ratio !== null && latestMonthly?.ratio !== undefined
-            ? `${fmt(latestMonthly.ratio * 100, 1)}%`
-            : '-'}
-          sub="정상 범위: 85~115%"
-          valueClass={ratioOk ? 'text-green-400' : 'text-red-400'}
-        />
-        <Card
-          title={`올해 누적 (${curYear?.year ?? ''}년, ${curYear?.months_count ?? 0}개월)`}
-          value={curYear ? `${fmt(curYear.site_8023 + curYear.site_8024)} kWh` : '-'}
-          sub={yoy8023 !== null
-            ? `전년비 ${S.site_8023}: ${yoy8023 > 0 ? '+' : ''}${fmt(yoy8023, 1)}%`
-            : ''}
-          valueClass={yoy8023 === null ? 'text-white' : yoy8023 >= 0 ? 'text-green-400' : 'text-red-400'}
-        />
       </div>
 
       <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
