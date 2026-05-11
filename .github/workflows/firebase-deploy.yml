@@ -10,6 +10,8 @@ on:
       - "dashboard/frontend/package.json"
       - "dashboard/frontend/vite.config.js"
       - "scripts/build_data.py"
+      - "scripts/daily_update.py"
+      - "past_data/**"
       - "firebase.json"
       - ".github/workflows/firebase-deploy.yml"
   workflow_dispatch:
