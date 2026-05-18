@@ -9,8 +9,6 @@ SITES = {
     "M0824": "site_8024",  # 소미
 }
 
-XPATH_LOGIN_ID = '//*[@id="input-27"]'
-XPATH_LOGIN_PW = '//*[@id="input-28"]'
 XPATH_LOGIN_BTN = '/html/body/div/div/div[1]/main/div/div[2]/main/div/div/div[2]/div[5]/div/button/span'
 XPATH_DATE_INPUT = '/html/body/div/div[1]/div[1]/main/div/div[2]/div/div[3]/div/div[2]/div/div/div/div/div[1]/div[2]/div[3]/div[2]/div/div/div[2]/div/div/input'
 XPATH_MONTHLY_TAB = '//*[@id="app"]/div[1]/div[1]/main/div/div[2]/div/div[3]/div/div[2]/div/div/div/div/div[1]/div[2]/div[1]/div/div/div[2]/div/div[3]'
@@ -55,10 +53,27 @@ def _months_in_range(start_ym: tuple[int, int], end_ym: tuple[int, int]) -> list
     return months
 
 
+def _find_login_inputs(page) -> tuple[str | None, str | None]:
+    """Vuetify 자동 생성 input ID를 동적으로 탐지한다.
+
+    Vuetify는 input-N 형식의 ID를 컴포넌트 순서대로 생성하므로,
+    사이트 업데이트 시 N값이 바뀌어도 동적으로 첫 두 visible input을 찾는다.
+    """
+    visible_ids: list[str] = page.evaluate("""() => {
+        return Array.from(document.querySelectorAll('input[id^="input-"]'))
+            .filter(el => el.offsetParent !== null && !el.disabled)
+            .map(el => el.id);
+    }""")
+    print(f"    [입력탐지] visible Vuetify input IDs: {visible_ids}")
+    if len(visible_ids) >= 2:
+        return f'//*[@id="{visible_ids[0]}"]', f'//*[@id="{visible_ids[1]}"]'
+    return None, None
+
+
 def _login(page) -> None:
     print("[1] 로그인 페이지 이동 중...")
     page.goto("https://hs3.hyundai-es.co.kr/#/login", wait_until="domcontentloaded")
-    page.wait_for_selector(XPATH_LOGIN_ID, timeout=15000)
+    page.wait_for_selector('input:visible', timeout=15000)
     page.screenshot(path="/tmp/debug_01_page_loaded.png")
 
     # v-overlay 다이얼로그 닫기 시도 (공지사항 등 상시 팝업)
@@ -79,15 +94,45 @@ def _login(page) -> None:
 
     print("[2] 아이디/비밀번호 입력 (keyboard.type)")
     # fill()은 Vue 반응형 모델을 갱신하지 못할 수 있어 keyboard.type() 사용
-    page.click(f'xpath={XPATH_LOGIN_ID}', force=True)
-    page.keyboard.type(os.environ["HES_USERNAME"])
-    page.click(f'xpath={XPATH_LOGIN_PW}', force=True)
-    page.keyboard.type(os.environ["HES_PASSWORD"])
+    id_xpath, pw_xpath = _find_login_inputs(page)
+    if id_xpath and pw_xpath:
+        page.click(f'xpath={id_xpath}', force=True)
+        page.keyboard.type(os.environ["HES_USERNAME"])
+        page.click(f'xpath={pw_xpath}', force=True)
+        page.keyboard.type(os.environ["HES_PASSWORD"])
+    else:
+        # Vuetify input-N 패턴이 없을 때: 순서 기반으로 첫 두 visible input 사용
+        visible_inputs = page.locator('input:visible')
+        n = visible_inputs.count()
+        print(f"    [입력탐지] visible input 수: {n} → 순서 기반 사용")
+        if n < 2:
+            raise Exception(f"로그인 입력 필드를 찾을 수 없음 (visible inputs: {n})")
+        visible_inputs.nth(0).click(force=True)
+        page.keyboard.type(os.environ["HES_USERNAME"])
+        visible_inputs.nth(1).click(force=True)
+        page.keyboard.type(os.environ["HES_PASSWORD"])
     page.screenshot(path="/tmp/debug_03_form_filled.png")
 
     print("[3] 로그인 버튼 클릭")
-    page.click(f'xpath={XPATH_LOGIN_BTN}')
-    page.wait_for_selector(XPATH_LOGIN_ID, state='detached', timeout=30000)
+    # 텍스트 기반 버튼 탐지를 먼저 시도하고, 실패 시 XPath fallback
+    btn_clicked = False
+    try:
+        login_btn = page.locator('button').filter(has_text='로그인')
+        if login_btn.count() > 0:
+            login_btn.first.click()
+            btn_clicked = True
+            print("    '로그인' 텍스트 버튼 클릭")
+    except Exception as e:
+        print(f"    텍스트 버튼 탐지 실패: {e}")
+    if not btn_clicked:
+        page.click(f'xpath={XPATH_LOGIN_BTN}')
+        print("    XPath 버튼 클릭 (fallback)")
+
+    # 로그인 성공 확인: URL이 /login에서 벗어날 때까지 대기
+    page.wait_for_function(
+        "() => !window.location.hash.startsWith('#/login')",
+        timeout=30000,
+    )
     print(f"[4] 로그인 완료 → {page.url}")
 
 
