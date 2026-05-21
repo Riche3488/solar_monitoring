@@ -110,8 +110,10 @@ def main() -> None:
             print(f"  [경고] {folder}: 파일이 다운로드되지 않음")
             if folder in backups:
                 xlsx.write_bytes(backups[folder])
-                print(f"  [복구] {folder}: 이전 파일 복원")
-            failed = True
+                print(f"  [복구] {folder}: 이전 파일 복원 — 이전 데이터로 배포 계속")
+            else:
+                print(f"  [오류] {folder}: 백업 없음 → 유효 데이터 없음")
+                failed = True
             continue
 
         count = _count_data_rows(xlsx, year, month)
@@ -120,14 +122,14 @@ def main() -> None:
             print(f"  [경고] {folder}: 유효 데이터 없음 — 이전 파일 복원")
             if folder in backups:
                 xlsx.write_bytes(backups[folder])
-                print(f"  [복구] {folder}: 이전 파일 복원 완료")
+                print(f"  [복구] {folder}: 이전 파일 복원 완료 — 이전 데이터로 배포 계속")
             else:
                 xlsx.unlink()
-                print(f"  [복구] {folder}: 백업 없음 → 빈 파일 삭제")
-            failed = True
+                print(f"  [오류] {folder}: 백업 없음 → 빈 파일 삭제, 유효 데이터 없음")
+                failed = True
 
     if failed:
-        print("\n[오류] 다운로드 검증 실패 — 이전 데이터 유지, 배포 중단")
+        print("\n[오류] 유효 데이터 없음(백업 없음) — 배포 중단")
         sys.exit(1)
 
 
