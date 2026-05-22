@@ -103,7 +103,9 @@ def main() -> None:
     print("Download complete.")
 
     # 다운로드된 파일 검증 — 빈 파일이면 이전 파일 복원
-    failed = False
+    hard_failed = False  # 백업도 없어 유효 데이터가 전혀 없는 경우
+    used_backup = False  # 백업으로 복원한 경우 (배포는 계속)
+
     for folder in ["site_8023", "site_8024"]:
         xlsx = BASE_DIR / folder / f"{year}-{month:02d}-01.xlsx"
         if not xlsx.exists():
@@ -111,24 +113,29 @@ def main() -> None:
             if folder in backups:
                 xlsx.write_bytes(backups[folder])
                 print(f"  [복구] {folder}: 이전 파일 복원")
-            failed = True
+                used_backup = True
+            else:
+                hard_failed = True
             continue
 
         count = _count_data_rows(xlsx, year, month)
         print(f"  [검증] {folder}: {count}개 데이터 행")
-        if count == 0:
+        if count <= 0:
             print(f"  [경고] {folder}: 유효 데이터 없음 — 이전 파일 복원")
             if folder in backups:
                 xlsx.write_bytes(backups[folder])
                 print(f"  [복구] {folder}: 이전 파일 복원 완료")
+                used_backup = True
             else:
                 xlsx.unlink()
                 print(f"  [복구] {folder}: 백업 없음 → 빈 파일 삭제")
-            failed = True
+                hard_failed = True
 
-    if failed:
-        print("\n[오류] 다운로드 검증 실패 — 이전 데이터 유지, 배포 중단")
+    if hard_failed:
+        print("\n[오류] 다운로드 검증 실패 — 유효 데이터 없음, 배포 중단")
         sys.exit(1)
+    elif used_backup:
+        print("\n[경고] 일부 사이트 새 데이터 없음 — 이전 데이터로 배포 진행")
 
 
 if __name__ == "__main__":
