@@ -9,9 +9,9 @@ SITES = {
     "M0824": "site_8024",  # 소미
 }
 
-XPATH_LOGIN_ID = '//*[@id="input-27"]'
-XPATH_LOGIN_PW = '//*[@id="input-28"]'
-# 절대 XPath 백업 — 텍스트 기반 선택자를 우선 시도
+# placeholder/type 기반 선택자 — Vuetify 자동생성 ID(input-N)는 업데이트마다 변경되므로 사용하지 않음
+XPATH_LOGIN_ID = '//input[@placeholder="아이디를 입력하세요" or @placeholder="아이디" or @type="text"][1]'
+XPATH_LOGIN_PW = '//input[@type="password"][1]'
 XPATH_LOGIN_BTN = '/html/body/div/div/div[1]/main/div/div[2]/main/div/div/div[2]/div[5]/div/button/span'
 CSS_LOGIN_BTN = "button.v-btn--contained, button[type='submit']"
 XPATH_DATE_INPUT = '/html/body/div/div[1]/div[1]/main/div/div[2]/div/div[3]/div/div[2]/div/div/div/div/div[1]/div[2]/div[3]/div[2]/div/div/div[2]/div/div/input'
@@ -57,73 +57,122 @@ def _months_in_range(start_ym: tuple[int, int], end_ym: tuple[int, int]) -> list
     return months
 
 
+def _dismiss_overlay_if_blocking(page) -> None:
+    """로그인 폼을 가리는 별도 팝업만 닫는다. 로그인 폼 자체가 오버레이면 건드리지 않는다."""
+    overlay = page.locator('.v-overlay--active')
+    if overlay.count() == 0:
+        return
+
+    # 오버레이가 로그인 입력창을 포함하면 로그인 폼 자체이므로 닫지 않음
+    if overlay.locator(f'xpath={XPATH_LOGIN_ID}').count() > 0:
+        print("[오버레이] 로그인 폼이 오버레이 내부 → 닫지 않고 진행")
+        return
+
+    print("[오버레이] 별도 팝업 감지 → 닫기 시도")
+    # 닫기(X) 버튼 또는 확인/닫기 텍스트 버튼 우선
+    for selector in [
+        '.v-overlay--active .v-btn--icon',
+        '.v-overlay--active button:has-text("닫기")',
+        '.v-overlay--active button:has-text("확인")',
+        '.v-overlay--active button:has-text("Close")',
+        '.v-overlay--active button',
+    ]:
+        try:
+            btn = page.locator(selector).first
+            if btn.count() > 0:
+                btn.click(timeout=3000)
+                overlay.wait_for(state='hidden', timeout=5000)
+                print(f"[오버레이] '{selector}' 클릭으로 닫힘")
+                page.wait_for_timeout(300)
+                return
+        except Exception:
+            continue
+
+    print("[오버레이] 버튼 닫기 실패 — 오버레이 무시하고 계속 진행")
+
+
+def _type_into_input(page, xpath: str, value: str) -> None:
+    """Vue v-model과 호환되도록 입력값을 주입한다."""
+    loc = page.locator(f'xpath={xpath}')
+    loc.click()
+    # 기존 값 전체 선택 후 덮어씀
+    page.keyboard.press("Control+a")
+    page.keyboard.type(value)
+    # 입력값이 반영됐는지 확인; 안 됐으면 JS로 강제 주입
+    actual = loc.input_value()
+    if actual != value:
+        page.evaluate(
+            """([sel, val]) => {
+                const el = document.evaluate(sel, document, null,
+                    XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+                if (!el) return;
+                const setter = Object.getOwnPropertyDescriptor(
+                    window.HTMLInputElement.prototype, 'value').set;
+                setter.call(el, val);
+                el.dispatchEvent(new Event('input', {bubbles: true}));
+                el.dispatchEvent(new Event('change', {bubbles: true}));
+            }""",
+            [xpath, value],
+        )
+        actual = loc.input_value()
+    print(f"  입력 확인: 길이={len(actual)} (기대={len(value)})")
+
+
 def _login(page) -> None:
     print("[1] 로그인 페이지 이동 중...")
     page.goto("https://hs3.hyundai-es.co.kr/#/login", wait_until="domcontentloaded")
-    page.wait_for_selector(XPATH_LOGIN_ID, timeout=15000)
+    page.wait_for_selector(f'xpath={XPATH_LOGIN_ID}', timeout=15000)
     page.screenshot(path="/tmp/debug_01_page_loaded.png")
 
-    # v-overlay 다이얼로그 닫기 시도 (공지사항 등 상시 팝업)
-    if page.locator('.v-overlay--active').count() > 0:
-        print("[오버레이] 감지 → 버튼 클릭 또는 ESC로 닫기 시도")
-        try:
-            page.locator('.v-overlay--active button').first.click(timeout=3000)
-            page.wait_for_selector('.v-overlay--active', state='hidden', timeout=5000)
-            print("[오버레이] 버튼 클릭으로 닫힘")
-        except Exception:
-            page.keyboard.press("Escape")
-            try:
-                page.wait_for_selector('.v-overlay--active', state='hidden', timeout=5000)
-                print("[오버레이] ESC로 닫힘")
-            except Exception:
-                print("[오버레이] 닫기 실패 — 계속 진행")
-        page.screenshot(path="/tmp/debug_02_overlay_dismissed.png")
+    _dismiss_overlay_if_blocking(page)
+    page.screenshot(path="/tmp/debug_02_after_overlay.png")
 
-    print("[2] 아이디/비밀번호 입력 (keyboard.type)")
-    # fill()은 Vue 반응형 모델을 갱신하지 못할 수 있어 keyboard.type() 사용
-    page.click(f'xpath={XPATH_LOGIN_ID}', force=True)
-    page.keyboard.type(os.environ["HES_USERNAME"])
-    page.click(f'xpath={XPATH_LOGIN_PW}', force=True)
-    page.keyboard.type(os.environ["HES_PASSWORD"])
+    # 오버레이 처리 후 로그인 폼이 여전히 보이는지 확인
+    if not page.locator(f'xpath={XPATH_LOGIN_ID}').is_visible():
+        print("[복구] 로그인 폼 비가시 → 페이지 재이동")
+        page.goto("https://hs3.hyundai-es.co.kr/#/login", wait_until="domcontentloaded")
+        page.wait_for_selector(f'xpath={XPATH_LOGIN_ID}', timeout=15000)
+        page.screenshot(path="/tmp/debug_02b_reloaded.png")
+
+    print("[2] 아이디/비밀번호 입력")
+    _type_into_input(page, XPATH_LOGIN_ID, os.environ["HES_USERNAME"])
+    _type_into_input(page, XPATH_LOGIN_PW, os.environ["HES_PASSWORD"])
     page.screenshot(path="/tmp/debug_03_form_filled.png")
 
     print("[3] 로그인 버튼 클릭")
-    # 텍스트 기반 선택자 우선 시도 → 실패 시 절대 XPath 폴백
     btn_clicked = False
-    try:
-        login_btn = page.locator('//button[.//span[contains(text(),"로그인")] or contains(text(),"로그인")]').first
-        login_btn.click(timeout=5000)
-        btn_clicked = True
-        print("[3] 텍스트 기반 버튼 클릭 성공")
-    except Exception as e:
-        print(f"[3] 텍스트 기반 버튼 클릭 실패({e}) → 절대 XPath 시도")
-    if not btn_clicked:
+    for label, fn in [
+        ("텍스트 XPath", lambda: page.locator('//button[.//span[contains(text(),"로그인")] or contains(text(),"로그인")]').first.click(timeout=5000)),
+        ("절대 XPath",   lambda: page.click(f'xpath={XPATH_LOGIN_BTN}', timeout=5000)),
+        ("CSS",          lambda: page.click(CSS_LOGIN_BTN, timeout=5000)),
+    ]:
+        if btn_clicked:
+            break
         try:
-            page.click(f'xpath={XPATH_LOGIN_BTN}', timeout=5000)
+            fn()
             btn_clicked = True
-            print("[3] 절대 XPath 버튼 클릭 성공")
+            print(f"[3] {label} 버튼 클릭 성공")
         except Exception as e:
-            print(f"[3] 절대 XPath 버튼 클릭 실패({e}) → CSS 선택자 시도")
+            print(f"[3] {label} 버튼 클릭 실패 → {e}")
+
     if not btn_clicked:
-        page.click(CSS_LOGIN_BTN)
-        print("[3] CSS 선택자 버튼 클릭 성공")
+        raise RuntimeError("로그인 버튼을 찾지 못함")
 
     page.screenshot(path="/tmp/debug_04_after_login_click.png")
 
-    # URL 변경 또는 로그인 입력창 소멸 중 먼저 충족되는 조건 대기
+    # 로그인 성공 대기 — URL 변경 또는 로그인 폼 소멸
     try:
         page.wait_for_url(lambda url: "#/login" not in url, timeout=30000)
         print(f"[4] 로그인 완료 (URL 변경) → {page.url}")
     except Exception:
         page.screenshot(path="/tmp/debug_05_login_timeout.png")
-        # URL이 바뀌지 않았더라도 폼이 사라졌으면 성공으로 간주
         if page.locator(f'xpath={XPATH_LOGIN_ID}').count() == 0:
             print(f"[4] 로그인 완료 (폼 소멸) → {page.url}")
         else:
-            # 오류 메시지 캡처
-            err_texts = page.locator('.v-messages__message, .error--text, [role="alert"]').all_inner_texts()
-            if err_texts:
-                print(f"[오류] 로그인 실패 메시지: {err_texts}")
+            err_texts = page.locator(
+                '.v-messages__message, .error--text, [role="alert"], .v-snack__content'
+            ).all_inner_texts()
+            print(f"[오류] 로그인 실패 — 화면 메시지: {err_texts or '없음'}")
             raise
 
 
