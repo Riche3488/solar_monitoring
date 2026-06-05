@@ -11,7 +11,9 @@ SITES = {
 
 XPATH_LOGIN_ID = '//*[@id="input-27"]'
 XPATH_LOGIN_PW = '//*[@id="input-28"]'
+# 절대 XPath 백업 — 텍스트 기반 선택자를 우선 시도
 XPATH_LOGIN_BTN = '/html/body/div/div/div[1]/main/div/div[2]/main/div/div/div[2]/div[5]/div/button/span'
+CSS_LOGIN_BTN = "button.v-btn--contained, button[type='submit']"
 XPATH_DATE_INPUT = '/html/body/div/div[1]/div[1]/main/div/div[2]/div/div[3]/div/div[2]/div/div/div/div/div[1]/div[2]/div[3]/div[2]/div/div/div[2]/div/div/input'
 XPATH_MONTHLY_TAB = '//*[@id="app"]/div[1]/div[1]/main/div/div[2]/div/div[3]/div/div[2]/div/div/div/div/div[1]/div[2]/div[1]/div/div/div[2]/div/div[3]'
 XPATH_EXCEL_BTN = '//*[@id="app"]/div[1]/div[1]/main/div/div[2]/div/div[3]/div/div[2]/div/div/div/div/div[1]/div[2]/div[3]/button[1]'
@@ -86,9 +88,43 @@ def _login(page) -> None:
     page.screenshot(path="/tmp/debug_03_form_filled.png")
 
     print("[3] 로그인 버튼 클릭")
-    page.click(f'xpath={XPATH_LOGIN_BTN}')
-    page.wait_for_selector(XPATH_LOGIN_ID, state='detached', timeout=30000)
-    print(f"[4] 로그인 완료 → {page.url}")
+    # 텍스트 기반 선택자 우선 시도 → 실패 시 절대 XPath 폴백
+    btn_clicked = False
+    try:
+        login_btn = page.locator('//button[.//span[contains(text(),"로그인")] or contains(text(),"로그인")]').first
+        login_btn.click(timeout=5000)
+        btn_clicked = True
+        print("[3] 텍스트 기반 버튼 클릭 성공")
+    except Exception as e:
+        print(f"[3] 텍스트 기반 버튼 클릭 실패({e}) → 절대 XPath 시도")
+    if not btn_clicked:
+        try:
+            page.click(f'xpath={XPATH_LOGIN_BTN}', timeout=5000)
+            btn_clicked = True
+            print("[3] 절대 XPath 버튼 클릭 성공")
+        except Exception as e:
+            print(f"[3] 절대 XPath 버튼 클릭 실패({e}) → CSS 선택자 시도")
+    if not btn_clicked:
+        page.click(CSS_LOGIN_BTN)
+        print("[3] CSS 선택자 버튼 클릭 성공")
+
+    page.screenshot(path="/tmp/debug_04_after_login_click.png")
+
+    # URL 변경 또는 로그인 입력창 소멸 중 먼저 충족되는 조건 대기
+    try:
+        page.wait_for_url(lambda url: "#/login" not in url, timeout=30000)
+        print(f"[4] 로그인 완료 (URL 변경) → {page.url}")
+    except Exception:
+        page.screenshot(path="/tmp/debug_05_login_timeout.png")
+        # URL이 바뀌지 않았더라도 폼이 사라졌으면 성공으로 간주
+        if page.locator(f'xpath={XPATH_LOGIN_ID}').count() == 0:
+            print(f"[4] 로그인 완료 (폼 소멸) → {page.url}")
+        else:
+            # 오류 메시지 캡처
+            err_texts = page.locator('.v-messages__message, .error--text, [role="alert"]').all_inner_texts()
+            if err_texts:
+                print(f"[오류] 로그인 실패 메시지: {err_texts}")
+            raise
 
 
 def _select_date_in_picker(page, year: int, month: int) -> None:
