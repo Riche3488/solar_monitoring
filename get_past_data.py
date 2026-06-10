@@ -57,78 +57,85 @@ def _months_in_range(start_ym: tuple[int, int], end_ym: tuple[int, int]) -> list
     return months
 
 
+def _safe_screenshot(page, path: str, timeout: int = 5000) -> None:
+    try:
+        page.screenshot(path=path, timeout=timeout)
+    except Exception as e:
+        print(f"[스크린샷 실패] {path}: {e}", flush=True)
+
+
 def _login(page) -> None:
-    print("[1] 로그인 페이지 이동 중...")
+    print("[1] 로그인 페이지 이동 중...", flush=True)
     page.goto("https://hs3.hyundai-es.co.kr/#/login", wait_until="domcontentloaded")
-    page.wait_for_selector(XPATH_LOGIN_ID, timeout=15000)
-    page.screenshot(path="/tmp/debug_01_page_loaded.png")
+    page.wait_for_selector(XPATH_LOGIN_ID, timeout=30000)
+    _safe_screenshot(page, "/tmp/debug_01_page_loaded.png")
 
     # v-overlay 다이얼로그 닫기 시도 (공지사항 등 상시 팝업)
     if page.locator('.v-overlay--active').count() > 0:
-        print("[오버레이] 감지 → 버튼 클릭 또는 ESC로 닫기 시도")
+        print("[오버레이] 감지 → 버튼 클릭 또는 ESC로 닫기 시도", flush=True)
         try:
             page.locator('.v-overlay--active button').first.click(timeout=3000)
             page.wait_for_selector('.v-overlay--active', state='hidden', timeout=5000)
-            print("[오버레이] 버튼 클릭으로 닫힘")
+            print("[오버레이] 버튼 클릭으로 닫힘", flush=True)
         except Exception:
             page.keyboard.press("Escape")
             try:
                 page.wait_for_selector('.v-overlay--active', state='hidden', timeout=5000)
-                print("[오버레이] ESC로 닫힘")
+                print("[오버레이] ESC로 닫힘", flush=True)
             except Exception:
-                print("[오버레이] 닫기 실패 — 계속 진행")
-        page.screenshot(path="/tmp/debug_02_overlay_dismissed.png")
+                print("[오버레이] 닫기 실패 — 계속 진행", flush=True)
+        _safe_screenshot(page, "/tmp/debug_02_overlay_dismissed.png")
 
-    print("[2] 아이디/비밀번호 입력 (keyboard.type)")
+    print("[2] 아이디/비밀번호 입력 (keyboard.type)", flush=True)
     # fill()은 Vue 반응형 모델을 갱신하지 못할 수 있어 keyboard.type() 사용
     page.click(f'xpath={XPATH_LOGIN_ID}', force=True)
     page.keyboard.type(os.environ["HES_USERNAME"])
     page.click(f'xpath={XPATH_LOGIN_PW}', force=True)
     page.keyboard.type(os.environ["HES_PASSWORD"])
-    page.screenshot(path="/tmp/debug_03_form_filled.png")
+    _safe_screenshot(page, "/tmp/debug_03_form_filled.png")
 
-    print("[3] 로그인 버튼 클릭")
+    print("[3] 로그인 버튼 클릭", flush=True)
     # 텍스트 기반 선택자 우선 시도 → 실패 시 절대 XPath 폴백
     btn_clicked = False
     try:
         login_btn = page.locator('//button[.//span[contains(text(),"로그인")] or contains(text(),"로그인")]').first
         login_btn.click(timeout=5000)
         btn_clicked = True
-        print("[3] 텍스트 기반 버튼 클릭 성공")
+        print("[3] 텍스트 기반 버튼 클릭 성공", flush=True)
     except Exception as e:
-        print(f"[3] 텍스트 기반 버튼 클릭 실패({e}) → 절대 XPath 시도")
+        print(f"[3] 텍스트 기반 버튼 클릭 실패({e}) → 절대 XPath 시도", flush=True)
     if not btn_clicked:
         try:
             page.click(f'xpath={XPATH_LOGIN_BTN}', timeout=5000)
             btn_clicked = True
-            print("[3] 절대 XPath 버튼 클릭 성공")
+            print("[3] 절대 XPath 버튼 클릭 성공", flush=True)
         except Exception as e:
-            print(f"[3] 절대 XPath 버튼 클릭 실패({e}) → CSS 선택자 시도")
+            print(f"[3] 절대 XPath 버튼 클릭 실패({e}) → CSS 선택자 시도", flush=True)
     if not btn_clicked:
         page.click(CSS_LOGIN_BTN)
-        print("[3] CSS 선택자 버튼 클릭 성공")
+        print("[3] CSS 선택자 버튼 클릭 성공", flush=True)
 
-    page.screenshot(path="/tmp/debug_04_after_login_click.png")
+    _safe_screenshot(page, "/tmp/debug_04_after_login_click.png")
 
     # URL 변경 또는 로그인 입력창 소멸 중 먼저 충족되는 조건 대기
     try:
         page.wait_for_url(lambda url: "#/login" not in url, timeout=30000)
-        print(f"[4] 로그인 완료 (URL 변경) → {page.url}")
+        print(f"[4] 로그인 완료 (URL 변경) → {page.url}", flush=True)
     except Exception:
-        page.screenshot(path="/tmp/debug_05_login_timeout.png")
+        _safe_screenshot(page, "/tmp/debug_05_login_timeout.png")
         # URL이 바뀌지 않았더라도 폼이 사라졌으면 성공으로 간주
         if page.locator(f'xpath={XPATH_LOGIN_ID}').count() == 0:
-            print(f"[4] 로그인 완료 (폼 소멸) → {page.url}")
+            print(f"[4] 로그인 완료 (폼 소멸) → {page.url}", flush=True)
         else:
             # 오류 메시지 캡처
             err_texts = page.locator('.v-messages__message, .error--text, [role="alert"]').all_inner_texts()
             if err_texts:
-                print(f"[오류] 로그인 실패 메시지: {err_texts}")
+                print(f"[오류] 로그인 실패 메시지: {err_texts}", flush=True)
             raise
 
 
 def _select_date_in_picker(page, year: int, month: int) -> None:
-    print(f"    [날짜] 피커 열기 ({year}-{month:02d})")
+    print(f"    [날짜] 피커 열기 ({year}-{month:02d})", flush=True)
     page.click(f'xpath={XPATH_DATE_INPUT}')
     page.wait_for_selector(f'xpath={XPATH_CAL_HEADER_BTN}', timeout=5000)
 
@@ -136,20 +143,20 @@ def _select_date_in_picker(page, year: int, month: int) -> None:
     header_loc = page.locator(f'xpath={XPATH_CAL_HEADER_BTN}').first
     for _ in range(36):
         header_text = header_loc.inner_text().strip()
-        print(f"    [날짜] 현재 달력: {header_text!r}")
+        print(f"    [날짜] 현재 달력: {header_text!r}", flush=True)
         parsed = _parse_cal_header(header_text)
         if not parsed:
-            print("    [날짜] 헤더 파싱 실패, 중단")
+            print("    [날짜] 헤더 파싱 실패, 중단", flush=True)
             break
         cur = parsed[0] * 12 + parsed[1]
         if cur == target:
-            print(f"    [날짜] 목표 달 도달")
+            print(f"    [날짜] 목표 달 도달", flush=True)
             break
         elif cur > target:
-            print(f"    [날짜] 이전 달로 이동")
+            print(f"    [날짜] 이전 달로 이동", flush=True)
             page.click(f'xpath={XPATH_CAL_PREV_BTN}')
         else:
-            print(f"    [날짜] 다음 달로 이동")
+            print(f"    [날짜] 다음 달로 이동", flush=True)
             page.click(f'xpath={XPATH_CAL_NEXT_BTN}')
         # 헤더가 실제로 바뀔 때까지 대기 (최대 3초)
         for _ in range(20):
@@ -157,7 +164,7 @@ def _select_date_in_picker(page, year: int, month: int) -> None:
             if header_loc.inner_text().strip() != header_text:
                 break
 
-    print(f"    [날짜] 중간 날짜 클릭 → 팝업 닫기")
+    print(f"    [날짜] 중간 날짜 클릭 → 팝업 닫기", flush=True)
     page.click(f'xpath={XPATH_CAL_MID_DAY}')
     page.wait_for_timeout(500)
 
@@ -165,38 +172,38 @@ def _select_date_in_picker(page, year: int, month: int) -> None:
 def _download_month(page, site_id: str, year: int, month: int, save_dir: Path, force: bool = False) -> None:
     save_path = save_dir / f"{year}-{month:02d}-01.xlsx"
     if save_path.exists() and not force:
-        print(f"  [스킵] 이미 존재: {save_path.name}")
+        print(f"  [스킵] 이미 존재: {save_path.name}", flush=True)
         return
 
-    print(f"  [다운로드] {site_id} {year}-{month:02d} 페이지 이동 중...")
+    print(f"  [다운로드] {site_id} {year}-{month:02d} 페이지 이동 중...", flush=True)
     page.goto(f"https://hs3.hyundai-es.co.kr/#/siteWork?site_id={site_id}")
     page.wait_for_selector(f'xpath={XPATH_DATE_INPUT}', timeout=15000)
-    print(f"  [다운로드] 페이지 로드 완료")
+    print(f"  [다운로드] 페이지 로드 완료", flush=True)
 
     _select_date_in_picker(page, year, month)
 
     display_text = page.locator(f'xpath={XPATH_DATE_INPUT}').input_value().strip()
-    print(f"  [확인] 날짜 표시값: {display_text!r}")
+    print(f"  [확인] 날짜 표시값: {display_text!r}", flush=True)
     if str(year) not in display_text or f"{month:02d}" not in display_text:
-        print(f"  [스킵] 날짜 불일치 ({year}-{month:02d} 기대, 실제: {display_text!r})")
+        print(f"  [스킵] 날짜 불일치 ({year}-{month:02d} 기대, 실제: {display_text!r})", flush=True)
         return
 
-    print(f"  [다운로드] 날짜 확인 완료 → 조회 버튼 클릭 (데이터 응답 대기 중...)")
+    print(f"  [다운로드] 날짜 확인 완료 → 조회 버튼 클릭 (데이터 응답 대기 중...)", flush=True)
     with page.expect_response(
         lambda r: r.request.resource_type in ("xhr", "fetch") and r.status == 200,
         timeout=15000
     ):
         page.click(f'xpath={XPATH_SEARCH_BTN}')
     page.wait_for_timeout(500)
-    print(f"  [다운로드] 데이터 갱신 완료 → 월간 탭 클릭")
+    print(f"  [다운로드] 데이터 갱신 완료 → 월간 탭 클릭", flush=True)
 
     page.click(f'xpath={XPATH_MONTHLY_TAB}')
     page.wait_for_timeout(1000)
-    print(f"  [다운로드] 엑셀 다운로드 시작...")
+    print(f"  [다운로드] 엑셀 다운로드 시작...", flush=True)
     with page.expect_download(timeout=30000) as dl_info:
         page.click(f'xpath={XPATH_EXCEL_BTN}')
     dl_info.value.save_as(str(save_path))
-    print(f"  [완료] 저장: {save_path.name}")
+    print(f"  [완료] 저장: {save_path.name}", flush=True)
 
 
 def get_past_excel(
@@ -215,7 +222,7 @@ def get_past_excel(
         start = (sy, sm)
 
     months = _months_in_range(start, end)
-    print(f"대상 기간: {start[0]}-{start[1]:02d} ~ {end[0]}-{end[1]:02d} ({len(months)}개월)")
+    print(f"대상 기간: {start[0]}-{start[1]:02d} ~ {end[0]}-{end[1]:02d} ({len(months)}개월)", flush=True)
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -223,19 +230,19 @@ def get_past_excel(
         try:
             _login(page)
         except Exception:
-            page.screenshot(path="/tmp/debug_login.png")
-            print(f"[디버그] 스크린샷 저장: /tmp/debug_login.png  현재 URL: {page.url}")
+            _safe_screenshot(page, "/tmp/debug_login.png")
+            print(f"[디버그] 스크린샷 저장: /tmp/debug_login.png  현재 URL: {page.url}", flush=True)
             raise
 
         for site_id, folder in SITES.items():
             save_dir = BASE_DIR / folder
             save_dir.mkdir(parents=True, exist_ok=True)
-            print(f"\n--- {site_id} ({folder}) ---")
+            print(f"\n--- {site_id} ({folder}) ---", flush=True)
             for year, month in months:
                 _download_month(page, site_id, year, month, save_dir, force=force)
 
         browser.close()
-    print("\n전체 완료")
+    print("\n전체 완료", flush=True)
 
 
 if __name__ == "__main__":
