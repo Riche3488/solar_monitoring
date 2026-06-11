@@ -200,37 +200,48 @@ def _download_month(page, site_id: str, year: int, month: int, save_dir: Path, f
         print(f"  [스킵] 이미 존재: {save_path.name}", flush=True)
         return
 
+    slug = f"{site_id}_{year}{month:02d}"
     print(f"  [다운로드] {site_id} {year}-{month:02d} 페이지 이동 중...", flush=True)
     page.goto(f"https://hs3.hyundai-es.co.kr/#/siteWork?site_id={site_id}")
     page.wait_for_selector(f'xpath={XPATH_DATE_INPUT}', timeout=15000)
     print(f"  [다운로드] 페이지 로드 완료", flush=True)
+    _safe_screenshot(page, f"/tmp/debug_{slug}_a_loaded.png")
 
     _select_date_in_picker(page, year, month)
+    _safe_screenshot(page, f"/tmp/debug_{slug}_b_date_selected.png")
 
     display_text = page.locator(f'xpath={XPATH_DATE_INPUT}').input_value().strip()
     print(f"  [확인] 날짜 표시값: {display_text!r}", flush=True)
     if not _date_display_matches(display_text, year, month):
         print(f"  [스킵] 날짜 불일치 ({year}-{month:02d} 기대, 실제: {display_text!r})", flush=True)
+        _safe_screenshot(page, f"/tmp/debug_{slug}_SKIP_date_mismatch.png")
         return
 
     print(f"  [다운로드] 날짜 확인 완료 → 조회 버튼 클릭 (데이터 응답 대기 중...)", flush=True)
-    with page.expect_response(
-        lambda r: r.request.resource_type in ("xhr", "fetch") and r.status == 200,
-        timeout=15000
-    ):
-        page.click(f'xpath={XPATH_SEARCH_BTN}')
-    # 임의 지연 대신 네트워크 안정화까지 대기 (데이터 완전 로딩 보장)
+    # 검색 버튼 클릭 후 첫 번째 데이터 응답 대기
     try:
-        page.wait_for_load_state("networkidle", timeout=8000)
+        with page.expect_response(
+            lambda r: r.request.resource_type in ("xhr", "fetch") and r.status == 200,
+            timeout=15000
+        ):
+            page.click(f'xpath={XPATH_SEARCH_BTN}')
+    except Exception as e:
+        # 버튼은 이미 클릭됨 — XHR 캡처 실패만 경고 (재클릭 없이 계속)
+        print(f"  [경고] 검색 XHR 응답 캡처 실패: {e} (계속 진행)", flush=True)
+    # 네트워크 안정화까지 대기 (데이터 완전 로딩 보장)
+    try:
+        page.wait_for_load_state("networkidle", timeout=10000)
     except Exception:
-        page.wait_for_timeout(1500)
+        page.wait_for_timeout(2000)
+    _safe_screenshot(page, f"/tmp/debug_{slug}_c_after_search.png")
     print(f"  [다운로드] 데이터 갱신 완료 → 월간 탭 클릭", flush=True)
 
     page.click(f'xpath={XPATH_MONTHLY_TAB}')
     try:
-        page.wait_for_load_state("networkidle", timeout=5000)
+        page.wait_for_load_state("networkidle", timeout=8000)
     except Exception:
-        page.wait_for_timeout(1500)
+        page.wait_for_timeout(2000)
+    _safe_screenshot(page, f"/tmp/debug_{slug}_d_monthly_tab.png")
     print(f"  [다운로드] 엑셀 다운로드 시작...", flush=True)
     with page.expect_download(timeout=30000) as dl_info:
         page.click(f'xpath={XPATH_EXCEL_BTN}')
