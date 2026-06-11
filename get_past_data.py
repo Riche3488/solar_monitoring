@@ -32,6 +32,31 @@ _MONTH_ABBR = {
 }
 
 
+def _date_display_matches(display_text: str, year: int, month: int) -> bool:
+    """날짜 입력창 표시값이 기대 연월과 일치하는지 확인. ISO·한국어·슬래시 포맷 모두 지원."""
+    if not display_text:
+        return False
+    # ISO 형식: "2026-06-15"
+    m = re.search(r'(\d{4})-(\d{2})-(\d{2})', display_text)
+    if m:
+        return int(m.group(1)) == year and int(m.group(2)) == month
+    # 한국어 형식: "2026년 6월" / "2026년 06월 15일"
+    m = re.search(r'(\d{4})[^\d]+(\d{1,2})', display_text)
+    if m:
+        return int(m.group(1)) == year and int(m.group(2)) == month
+    # 슬래시 형식: "2026/06/15"
+    m = re.search(r'(\d{4})/(\d{1,2})/(\d{1,2})', display_text)
+    if m:
+        return int(m.group(1)) == year and int(m.group(2)) == month
+    # 폴백: 연도와 구분자 포함 월 패턴
+    return str(year) in display_text and any(
+        p in display_text for p in (
+            f"-{month:02d}-", f"/{month:02d}/",
+            f"년 {month:02d}월", f"년 {month}월",
+        )
+    )
+
+
 def _parse_cal_header(text: str) -> tuple[int, int] | None:
     """연월 헤더 파싱. 'YYYY년 M월' 및 'Month YYYY' 형식 모두 지원."""
     m = re.search(r"(\d{4})[^\d]+(\d{1,2})", text)
@@ -184,7 +209,7 @@ def _download_month(page, site_id: str, year: int, month: int, save_dir: Path, f
 
     display_text = page.locator(f'xpath={XPATH_DATE_INPUT}').input_value().strip()
     print(f"  [확인] 날짜 표시값: {display_text!r}", flush=True)
-    if str(year) not in display_text or f"{month:02d}" not in display_text:
+    if not _date_display_matches(display_text, year, month):
         print(f"  [스킵] 날짜 불일치 ({year}-{month:02d} 기대, 실제: {display_text!r})", flush=True)
         return
 
@@ -194,11 +219,18 @@ def _download_month(page, site_id: str, year: int, month: int, save_dir: Path, f
         timeout=15000
     ):
         page.click(f'xpath={XPATH_SEARCH_BTN}')
-    page.wait_for_timeout(500)
+    # 임의 지연 대신 네트워크 안정화까지 대기 (데이터 완전 로딩 보장)
+    try:
+        page.wait_for_load_state("networkidle", timeout=8000)
+    except Exception:
+        page.wait_for_timeout(1500)
     print(f"  [다운로드] 데이터 갱신 완료 → 월간 탭 클릭", flush=True)
 
     page.click(f'xpath={XPATH_MONTHLY_TAB}')
-    page.wait_for_timeout(1000)
+    try:
+        page.wait_for_load_state("networkidle", timeout=5000)
+    except Exception:
+        page.wait_for_timeout(1500)
     print(f"  [다운로드] 엑셀 다운로드 시작...", flush=True)
     with page.expect_download(timeout=30000) as dl_info:
         page.click(f'xpath={XPATH_EXCEL_BTN}')
