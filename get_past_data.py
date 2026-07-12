@@ -17,10 +17,13 @@ CSS_LOGIN_BTN = "button.v-btn--contained, button[type='submit']"
 XPATH_DATE_INPUT = '/html/body/div/div[1]/div[1]/main/div/div[2]/div/div[3]/div/div[2]/div/div/div/div/div[1]/div[2]/div[3]/div[2]/div/div/div[2]/div/div/input'
 XPATH_MONTHLY_TAB = '//*[@id="app"]/div[1]/div[1]/main/div/div[2]/div/div[3]/div/div[2]/div/div/div/div/div[1]/div[2]/div[1]/div/div/div[2]/div/div[3]'
 XPATH_EXCEL_BTN = '//*[@id="app"]/div[1]/div[1]/main/div/div[2]/div/div[3]/div/div[2]/div/div/div/div/div[1]/div[2]/div[3]/button[1]'
-XPATH_CAL_HEADER_BTN = '/html/body/div/div[2]/div/div/div/div[1]/div/div/button'
-XPATH_CAL_PREV_BTN = '/html/body/div/div[2]/div/div/div/div[1]/button[1]'
-XPATH_CAL_NEXT_BTN = '/html/body/div/div[2]/div/div/div/div[1]/button[2]'
-XPATH_CAL_MID_DAY = '/html/body/div/div[2]/div/div/div/div[2]/table/tbody/tr[3]/td[4]/button'
+# 달력은 body로 텔레포트되지 않고 페이지 안에 인라인으로 렌더링된다(Vuetify
+# v-date-picker 표준 클래스). 절대 XPath 대신 이 클래스들을 사용해 위치 변화에
+# 영향받지 않도록 한다.
+CSS_CAL_HEADER_VALUE = '.v-date-picker-header__value button'
+CSS_CAL_PREV_BTN = '.v-date-picker-header__left'
+CSS_CAL_NEXT_BTN = '.v-date-picker-header__right'
+CSS_CAL_DAY_BTN = '.v-date-picker-table--date button:not([disabled])'
 XPATH_DATE_DISPLAY = '/html/body/div/div[1]/div[1]/main/div/div[2]/div/div[3]/div/div[2]/div/div/div/div/div[1]/div[2]/div[3]/div[2]/div/div/div[2]/div'
 XPATH_SEARCH_BTN = '/html/body/div/div[1]/div[1]/main/div/div[2]/div/div[3]/div/div[2]/div/div/div/div/div[1]/div[2]/div[3]/button[2]'
 
@@ -162,10 +165,17 @@ def _login(page) -> None:
 def _select_date_in_picker(page, year: int, month: int) -> None:
     print(f"    [날짜] 피커 열기 ({year}-{month:02d})", flush=True)
     page.click(f'xpath={XPATH_DATE_INPUT}')
-    page.wait_for_selector(f'xpath={XPATH_CAL_HEADER_BTN}', timeout=5000)
+    try:
+        page.wait_for_selector(CSS_CAL_HEADER_VALUE, timeout=15000)
+    except Exception:
+        _safe_screenshot(page, "/tmp/debug_calendar_timeout.png")
+        raise
+
+    header_loc = page.locator(CSS_CAL_HEADER_VALUE).first
+    prev_loc = page.locator(CSS_CAL_PREV_BTN).first
+    next_loc = page.locator(CSS_CAL_NEXT_BTN).first
 
     target = year * 12 + month
-    header_loc = page.locator(f'xpath={XPATH_CAL_HEADER_BTN}').first
     for _ in range(36):
         header_text = header_loc.inner_text().strip()
         print(f"    [날짜] 현재 달력: {header_text!r}", flush=True)
@@ -179,18 +189,18 @@ def _select_date_in_picker(page, year: int, month: int) -> None:
             break
         elif cur > target:
             print(f"    [날짜] 이전 달로 이동", flush=True)
-            page.click(f'xpath={XPATH_CAL_PREV_BTN}')
+            prev_loc.click()
         else:
             print(f"    [날짜] 다음 달로 이동", flush=True)
-            page.click(f'xpath={XPATH_CAL_NEXT_BTN}')
+            next_loc.click()
         # 헤더가 실제로 바뀔 때까지 대기 (최대 3초)
         for _ in range(20):
             page.wait_for_timeout(150)
             if header_loc.inner_text().strip() != header_text:
                 break
 
-    print(f"    [날짜] 중간 날짜 클릭 → 팝업 닫기", flush=True)
-    page.click(f'xpath={XPATH_CAL_MID_DAY}')
+    print(f"    [날짜] 날짜 클릭 → 팝업 닫기", flush=True)
+    page.locator(CSS_CAL_DAY_BTN).first.click()
     page.wait_for_timeout(500)
 
 
