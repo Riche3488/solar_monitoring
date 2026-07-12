@@ -109,8 +109,18 @@ def main() -> None:
             print(f"Removed stale file: {xlsx.name} (백업 보관)")
 
     print(f"Downloading {year}-{month:02d} for all sites...")
-    get_past_excel(start=(year, month), end=(year, month))
-    print("Download complete.")
+    try:
+        get_past_excel(start=(year, month), end=(year, month))
+        print("Download complete.")
+    except Exception as e:
+        print(f"  [경고] 다운로드 실패: {e}")
+        print("  [재시도] 다운로드 재시도 중...")
+        try:
+            get_past_excel(start=(year, month), end=(year, month))
+            print("Download complete (재시도 성공).")
+        except Exception as e2:
+            print(f"  [오류] 재시도도 실패: {e2}")
+            print("  [복구] 이전 파일로 폴백 후 배포 계속 진행")
 
     # 다운로드된 파일 검증 — 빈 파일이면 이전 파일 복원
     failed = False
