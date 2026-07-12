@@ -177,7 +177,24 @@ _FIND_NEW_CALENDAR_DIV_JS = (
 def _select_date_in_picker(page, year: int, month: int) -> None:
     print(f"    [날짜] 피커 열기 ({year}-{month:02d})", flush=True)
     page.evaluate(_MARK_EXISTING_DIVS_JS)
+
+    # 진단용: 클릭 대상이 실제로 무엇인지, 클릭 직후 화면이 어떻게 되는지 남긴다
+    try:
+        target_info = page.evaluate(
+            f"() => {{ const el = document.evaluate('{XPATH_DATE_INPUT}', document, null, "
+            "XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;"
+            " if (!el) return null;"
+            " const r = el.getBoundingClientRect();"
+            " return {tag: el.tagName, outerHTML: el.outerHTML.slice(0, 300), "
+            " rect: {x: r.x, y: r.y, w: r.width, h: r.height}, disabled: el.disabled, "
+            " readOnly: el.readOnly}; }}"
+        )
+        print(f"    [진단] 날짜 입력 요소: {target_info}", flush=True)
+    except Exception as diag_err:
+        print(f"    [진단] 날짜 입력 요소 덤프 실패: {diag_err}", flush=True)
+
     page.click(f'xpath={XPATH_DATE_INPUT}')
+    _safe_screenshot(page, "/tmp/debug_calendar_after_click.png", timeout=3000)
     try:
         # 달력은 body의 새 자식 div로 텔레포트된다. 채팅 위젯 등 다른 고정 div가
         # 비슷한 시점에 붙을 수 있으므로, "새로 추가되고 table을 담은" div를 기다린다.
@@ -186,6 +203,10 @@ def _select_date_in_picker(page, year: int, month: int) -> None:
         # 진단용: 실패 시점의 화면과 body 하위 구조를 남겨서 선택자 변경 여부를 확인한다
         _safe_screenshot(page, "/tmp/debug_calendar_timeout.png")
         try:
+            page.screenshot(path="/tmp/debug_calendar_timeout_full.png", full_page=True, timeout=5000)
+        except Exception as ss_err:
+            print(f"    [진단] 전체 페이지 스크린샷 실패: {ss_err}", flush=True)
+        try:
             structure = page.evaluate(
                 "() => Array.from(document.body.children).map(el => "
                 "({tag: el.tagName, cls: el.className, html: el.outerHTML.slice(0, 500)}))"
@@ -193,6 +214,16 @@ def _select_date_in_picker(page, year: int, month: int) -> None:
             print(f"    [진단] body 하위 구조: {structure}", flush=True)
         except Exception as diag_err:
             print(f"    [진단] body 구조 덤프 실패: {diag_err}", flush=True)
+        try:
+            # 텔레포트되지 않고 페이지 안쪽에 인라인으로 달력이 열렸을 가능성도 확인
+            inline_info = page.evaluate(
+                "() => ({ tableCount: document.querySelectorAll('table').length,"
+                " pickerLike: Array.from(document.querySelectorAll('[class*=picker],[class*=calendar],[class*=date]'))"
+                " .slice(0, 10).map(el => ({tag: el.tagName, cls: el.className})) })"
+            )
+            print(f"    [진단] 인라인 달력 탐색: {inline_info}", flush=True)
+        except Exception as diag_err:
+            print(f"    [진단] 인라인 달력 탐색 실패: {diag_err}", flush=True)
         raise
 
     n = page.evaluate(_FIND_NEW_CALENDAR_DIV_JS)
