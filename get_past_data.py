@@ -162,7 +162,20 @@ def _login(page) -> None:
 def _select_date_in_picker(page, year: int, month: int) -> None:
     print(f"    [날짜] 피커 열기 ({year}-{month:02d})", flush=True)
     page.click(f'xpath={XPATH_DATE_INPUT}')
-    page.wait_for_selector(f'xpath={XPATH_CAL_HEADER_BTN}', timeout=5000)
+    try:
+        page.wait_for_selector(f'xpath={XPATH_CAL_HEADER_BTN}', timeout=15000)
+    except Exception:
+        # 진단용: 실패 시점의 화면과 body 하위 구조를 남겨서 선택자 변경 여부를 확인한다
+        _safe_screenshot(page, "/tmp/debug_calendar_timeout.png")
+        try:
+            structure = page.evaluate(
+                "() => Array.from(document.body.children).map(el => "
+                "({tag: el.tagName, cls: el.className, html: el.outerHTML.slice(0, 500)}))"
+            )
+            print(f"    [진단] body 하위 구조: {structure}", flush=True)
+        except Exception as diag_err:
+            print(f"    [진단] body 구조 덤프 실패: {diag_err}", flush=True)
+        raise
 
     target = year * 12 + month
     header_loc = page.locator(f'xpath={XPATH_CAL_HEADER_BTN}').first
