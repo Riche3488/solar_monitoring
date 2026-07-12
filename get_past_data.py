@@ -159,8 +159,18 @@ def _login(page) -> None:
             raise
 
 
+def _remove_chat_widget(page) -> None:
+    """포털에 새로 추가된 EasyConnect 채팅 위젯(우하단 고정)이 날짜 피커 렌더링
+    영역과 겹쳐 캘린더가 열리지 않는 문제를 막기 위해 제거한다."""
+    try:
+        page.evaluate("document.getElementById('easyconnect-fab-wrapper')?.remove()")
+    except Exception:
+        pass
+
+
 def _select_date_in_picker(page, year: int, month: int) -> None:
     print(f"    [날짜] 피커 열기 ({year}-{month:02d})", flush=True)
+    _remove_chat_widget(page)
     page.click(f'xpath={XPATH_DATE_INPUT}')
     try:
         page.wait_for_selector(f'xpath={XPATH_CAL_HEADER_BTN}', timeout=15000)
