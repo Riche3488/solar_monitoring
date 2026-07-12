@@ -13,21 +13,31 @@ const TOOLTIP_STYLE = {
   labelStyle: { color: '#e5e7eb' },
 }
 
+const METRICS = {
+  cumulative: { key8023: 'site_8023', key8024: 'site_8024', unit: 'kWh', digits: 0, label: '누적', title: '월별 발전량 추이 (누적 kWh)' },
+  average: { key8023: 'avg_site_8023', key8024: 'avg_site_8024', unit: 'kWh/일', digits: 1, label: '일평균 발전량', title: '월별 발전량 추이 (일평균 kWh)' },
+  hours: { key8023: 'avg_hours_8023', key8024: 'avg_hours_8024', unit: '시간', digits: 2, label: '일평균 발전시간', title: '월별 일평균 발전시간 추이' },
+}
+
 export default function MonthlyTrend({ data }) {
+  const [metric, setMetric] = useState('cumulative')
   const [normalized, setNormalized] = useState(false)
   const monthly = useMemo(() => getMonthlyTotals(data), [data])
+  const metricCfg = METRICS[metric]
 
   const chartData = useMemo(() => {
     if (!normalized || !monthly.length) return monthly
     const first12 = monthly.slice(0, 12)
-    const base8023 = first12.reduce((s, d) => s + d.site_8023, 0) / first12.length
-    const base8024 = first12.reduce((s, d) => s + d.site_8024, 0) / first12.length
+    const vals8023 = first12.map(d => d[metricCfg.key8023]).filter(v => v !== null)
+    const vals8024 = first12.map(d => d[metricCfg.key8024]).filter(v => v !== null)
+    const base8023 = vals8023.length ? vals8023.reduce((s, v) => s + v, 0) / vals8023.length : 0
+    const base8024 = vals8024.length ? vals8024.reduce((s, v) => s + v, 0) / vals8024.length : 0
     return monthly.map(d => ({
       ...d,
-      site_8023: base8023 > 0 ? (d.site_8023 / base8023) * 100 : null,
-      site_8024: base8024 > 0 ? (d.site_8024 / base8024) * 100 : null,
+      [metricCfg.key8023]: base8023 > 0 && d[metricCfg.key8023] !== null ? (d[metricCfg.key8023] / base8023) * 100 : null,
+      [metricCfg.key8024]: base8024 > 0 && d[metricCfg.key8024] !== null ? (d[metricCfg.key8024] / base8024) * 100 : null,
     }))
-  }, [monthly, normalized])
+  }, [monthly, normalized, metricCfg])
 
   const tickFormatter = (val, idx) => {
     const d = chartData[idx]
@@ -44,7 +54,22 @@ export default function MonthlyTrend({ data }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="flex gap-1">
+          {Object.entries(METRICS).map(([key, cfg]) => (
+            <button
+              key={key}
+              onClick={() => setMetric(key)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                metric === key
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              }`}
+            >
+              {cfg.label}
+            </button>
+          ))}
+        </div>
         <label className="flex items-center gap-2 cursor-pointer">
           <input
             type="checkbox"
@@ -58,7 +83,7 @@ export default function MonthlyTrend({ data }) {
 
       <div className="bg-gray-800 rounded-xl border border-gray-700 p-5">
         <h2 className="font-semibold text-white mb-4">
-          월별 발전량 추이 {normalized ? '(정규화 %)' : '(kWh)'}
+          {metricCfg.title} {normalized ? '→ 정규화 (%)' : ''}
         </h2>
         <ResponsiveContainer width="100%" height={380}>
           <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 40 }}>
@@ -75,17 +100,17 @@ export default function MonthlyTrend({ data }) {
             <Tooltip
               {...TOOLTIP_STYLE}
               formatter={(v, name) => [
-                normalized ? `${fmt(v, 1)}%` : `${fmt(v)} kWh`,
-                name === 'site_8023' ? S.site_8023 : S.site_8024,
+                normalized ? `${fmt(v, 1)}%` : `${fmt(v, metricCfg.digits)} ${metricCfg.unit}`,
+                name === metricCfg.key8023 ? S.site_8023 : S.site_8024,
               ]}
               labelFormatter={labelFormatter}
             />
             <Legend
-              formatter={v => v === 'site_8023' ? S.site_8023 : S.site_8024}
+              formatter={v => v === metricCfg.key8023 ? S.site_8023 : S.site_8024}
               wrapperStyle={{ color: '#9ca3af', fontSize: 13 }}
             />
-            <Line type="monotone" dataKey="site_8023" name="site_8023" stroke={C.site_8023} strokeWidth={2} dot={false} />
-            <Line type="monotone" dataKey="site_8024" name="site_8024" stroke={C.site_8024} strokeWidth={2} dot={false} />
+            <Line type="monotone" dataKey={metricCfg.key8023} name={metricCfg.key8023} stroke={C.site_8023} strokeWidth={2} dot={false} connectNulls={false} />
+            <Line type="monotone" dataKey={metricCfg.key8024} name={metricCfg.key8024} stroke={C.site_8024} strokeWidth={2} dot={false} connectNulls={false} />
           </LineChart>
         </ResponsiveContainer>
       </div>
