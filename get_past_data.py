@@ -89,26 +89,37 @@ def _safe_screenshot(page, path: str, timeout: int = 5000) -> None:
         print(f"[스크린샷 실패] {path}: {e}", flush=True)
 
 
+def _dismiss_overlay(page, label: str = "오버레이") -> bool:
+    """v-overlay 다이얼로그(공지사항 등 상시 팝업) 닫기 시도.
+
+    이 팝업이 body에 남아 있으면 절대 XPath 기반 셀렉터(캘린더 등)의
+    형제 인덱스가 밀려서 다른 요소가 깨질 수 있으므로, 로그인 페이지뿐
+    아니라 이후 페이지 이동 시에도 호출한다.
+    """
+    if page.locator('.v-overlay--active').count() == 0:
+        return False
+    print(f"[{label}] 감지 → 버튼 클릭 또는 ESC로 닫기 시도", flush=True)
+    try:
+        page.locator('.v-overlay--active button').first.click(timeout=3000)
+        page.wait_for_selector('.v-overlay--active', state='hidden', timeout=5000)
+        print(f"[{label}] 버튼 클릭으로 닫힘", flush=True)
+    except Exception:
+        page.keyboard.press("Escape")
+        try:
+            page.wait_for_selector('.v-overlay--active', state='hidden', timeout=5000)
+            print(f"[{label}] ESC로 닫힘", flush=True)
+        except Exception:
+            print(f"[{label}] 닫기 실패 — 계속 진행", flush=True)
+    return True
+
+
 def _login(page) -> None:
     print("[1] 로그인 페이지 이동 중...", flush=True)
     page.goto("https://hs3.hyundai-es.co.kr/#/login", wait_until="domcontentloaded")
     page.wait_for_selector(XPATH_LOGIN_ID, timeout=30000)
     _safe_screenshot(page, "/tmp/debug_01_page_loaded.png")
 
-    # v-overlay 다이얼로그 닫기 시도 (공지사항 등 상시 팝업)
-    if page.locator('.v-overlay--active').count() > 0:
-        print("[오버레이] 감지 → 버튼 클릭 또는 ESC로 닫기 시도", flush=True)
-        try:
-            page.locator('.v-overlay--active button').first.click(timeout=3000)
-            page.wait_for_selector('.v-overlay--active', state='hidden', timeout=5000)
-            print("[오버레이] 버튼 클릭으로 닫힘", flush=True)
-        except Exception:
-            page.keyboard.press("Escape")
-            try:
-                page.wait_for_selector('.v-overlay--active', state='hidden', timeout=5000)
-                print("[오버레이] ESC로 닫힘", flush=True)
-            except Exception:
-                print("[오버레이] 닫기 실패 — 계속 진행", flush=True)
+    if _dismiss_overlay(page):
         _safe_screenshot(page, "/tmp/debug_02_overlay_dismissed.png")
 
     print("[2] 아이디/비밀번호 입력 (keyboard.type)", flush=True)
@@ -162,7 +173,16 @@ def _login(page) -> None:
 def _select_date_in_picker(page, year: int, month: int) -> None:
     print(f"    [날짜] 피커 열기 ({year}-{month:02d})", flush=True)
     page.click(f'xpath={XPATH_DATE_INPUT}')
-    page.wait_for_selector(f'xpath={XPATH_CAL_HEADER_BTN}', timeout=5000)
+    try:
+        page.wait_for_selector(f'xpath={XPATH_CAL_HEADER_BTN}', timeout=15000)
+    except Exception:
+        # 남아있는 공지 오버레이가 형제 인덱스를 밀어 절대 XPath가 어긋났을 수 있음
+        # → 오버레이 닫고 날짜 입력을 다시 클릭해 재시도
+        print("    [날짜] 캘린더 헤더 미발견 → 오버레이 확인 후 재시도", flush=True)
+        _safe_screenshot(page, "/tmp/debug_cal_header_timeout.png")
+        _dismiss_overlay(page, label="날짜피커오버레이")
+        page.click(f'xpath={XPATH_DATE_INPUT}')
+        page.wait_for_selector(f'xpath={XPATH_CAL_HEADER_BTN}', timeout=15000)
 
     target = year * 12 + month
     header_loc = page.locator(f'xpath={XPATH_CAL_HEADER_BTN}').first
@@ -205,6 +225,7 @@ def _download_month(page, site_id: str, year: int, month: int, save_dir: Path, f
     page.goto(f"https://hs3.hyundai-es.co.kr/#/siteWork?site_id={site_id}")
     page.wait_for_selector(f'xpath={XPATH_DATE_INPUT}', timeout=15000)
     print(f"  [다운로드] 페이지 로드 완료", flush=True)
+    _dismiss_overlay(page, label="siteWork오버레이")
     _safe_screenshot(page, f"/tmp/debug_{slug}_a_loaded.png")
 
     _select_date_in_picker(page, year, month)
