@@ -162,24 +162,26 @@ def _login(page) -> None:
             raise
 
 
-def _body_div_count(page) -> int:
-    return page.evaluate(
-        "Array.from(document.body.children).filter(el => el.tagName === 'DIV').length"
-    )
+_MARK_EXISTING_DIVS_JS = (
+    "Array.from(document.body.children).forEach(el => {"
+    " if (el.tagName === 'DIV') el.dataset.hesPre = '1'; })"
+)
+# 새로 추가된 div 중, 날짜 테이블(<table>)을 담고 있는 것을 달력으로 판단한다.
+# (채팅 위젯 등 다른 div가 비슷한 시점에 붙어도 table이 없으므로 걸러진다)
+_FIND_NEW_CALENDAR_DIV_JS = (
+    "Array.from(document.body.children).filter(el => el.tagName === 'DIV')"
+    ".findIndex(el => !el.dataset.hesPre && el.querySelector('table')) + 1"
+)
 
 
 def _select_date_in_picker(page, year: int, month: int) -> None:
     print(f"    [날짜] 피커 열기 ({year}-{month:02d})", flush=True)
-    before = _body_div_count(page)
+    page.evaluate(_MARK_EXISTING_DIVS_JS)
     page.click(f'xpath={XPATH_DATE_INPUT}')
     try:
         # 달력은 body의 새 자식 div로 텔레포트된다. 채팅 위젯 등 다른 고정 div가
-        # 이미 붙어 있을 수 있으므로 고정 인덱스 대신 "새로 늘어난 div"를 기다린다.
-        page.wait_for_function(
-            "(n) => Array.from(document.body.children).filter(el => el.tagName === 'DIV').length > n",
-            arg=before,
-            timeout=15000,
-        )
+        # 비슷한 시점에 붙을 수 있으므로, "새로 추가되고 table을 담은" div를 기다린다.
+        page.wait_for_function(f"() => ({_FIND_NEW_CALENDAR_DIV_JS}) > 0", timeout=15000)
     except Exception:
         # 진단용: 실패 시점의 화면과 body 하위 구조를 남겨서 선택자 변경 여부를 확인한다
         _safe_screenshot(page, "/tmp/debug_calendar_timeout.png")
@@ -193,7 +195,7 @@ def _select_date_in_picker(page, year: int, month: int) -> None:
             print(f"    [진단] body 구조 덤프 실패: {diag_err}", flush=True)
         raise
 
-    n = _body_div_count(page)
+    n = page.evaluate(_FIND_NEW_CALENDAR_DIV_JS)
     header_xpath = XPATH_CAL_HEADER_BTN_TMPL.format(n=n)
     prev_xpath = XPATH_CAL_PREV_BTN_TMPL.format(n=n)
     next_xpath = XPATH_CAL_NEXT_BTN_TMPL.format(n=n)
