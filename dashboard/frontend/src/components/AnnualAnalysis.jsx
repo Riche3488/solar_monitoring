@@ -13,6 +13,12 @@ const TOOLTIP_STYLE = {
   labelStyle: { color: '#e5e7eb' },
 }
 
+const SAME_MONTH_METRICS = {
+  cumulative: { key8023: 'site_8023', key8024: 'site_8024', unit: 'kWh', digits: 0, label: '누적' },
+  average: { key8023: 'avg_site_8023', key8024: 'avg_site_8024', unit: 'kWh/일', digits: 1, label: '일평균 발전량' },
+  hours: { key8023: 'avg_hours_8023', key8024: 'avg_hours_8024', unit: '시간', digits: 2, label: '일평균 발전시간' },
+}
+
 function HoursBarLabel({ x, y, width, value, index, annualData, yoyKey }) {
   const row = annualData?.[index]
   const yoy = row?.[yoyKey] ?? null
@@ -34,6 +40,7 @@ function HoursBarLabel({ x, y, width, value, index, annualData, yoyKey }) {
 export default function AnnualAnalysis({ data }) {
   const [sameMonth, setSameMonth] = useState(6)
   const [siteTab, setSiteTab] = useState('site_8023')
+  const [sameMonthMetric, setSameMonthMetric] = useState('cumulative')
 
   const annual = useMemo(() => getAnnualTotals(data), [data])
   const monthly = useMemo(() => getMonthlyTotals(data), [data])
@@ -50,6 +57,7 @@ export default function AnnualAnalysis({ data }) {
 
   const sameMonthData = useMemo(() =>
     monthly.filter(d => d.month === sameMonth), [monthly, sameMonth])
+  const sameMonthCfg = SAME_MONTH_METRICS[sameMonthMetric]
 
   return (
     <div className="space-y-6">
@@ -138,20 +146,37 @@ export default function AnnualAnalysis({ data }) {
       </div>
 
       <div className="bg-gray-800 rounded-xl border border-gray-700 p-5">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div>
             <h2 className="font-semibold text-white">동일 월 연도별 비교 (노후화 모니터링)</h2>
             <p className="text-gray-500 text-xs mt-0.5">같은 계절 발전량이 해를 거듭할수록 감소하면 시설 노후화 신호</p>
           </div>
-          <select
-            value={sameMonth}
-            onChange={e => setSameMonth(Number(e.target.value))}
-            className="bg-gray-700 text-gray-200 rounded-lg px-3 py-2 text-sm border border-gray-600 focus:outline-none"
-          >
-            {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
-              <option key={m} value={m}>{m}월</option>
-            ))}
-          </select>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex gap-1">
+              {Object.entries(SAME_MONTH_METRICS).map(([key, cfg]) => (
+                <button
+                  key={key}
+                  onClick={() => setSameMonthMetric(key)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                    sameMonthMetric === key
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  }`}
+                >
+                  {cfg.label}
+                </button>
+              ))}
+            </div>
+            <select
+              value={sameMonth}
+              onChange={e => setSameMonth(Number(e.target.value))}
+              className="bg-gray-700 text-gray-200 rounded-lg px-3 py-2 text-sm border border-gray-600 focus:outline-none"
+            >
+              {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                <option key={m} value={m}>{m}월</option>
+              ))}
+            </select>
+          </div>
         </div>
         <ResponsiveContainer width="100%" height={260}>
           <LineChart data={sameMonthData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
@@ -160,12 +185,18 @@ export default function AnnualAnalysis({ data }) {
             <YAxis tick={{ fill: '#9ca3af', fontSize: 11 }} />
             <Tooltip
               {...TOOLTIP_STYLE}
-              formatter={(v, name) => [`${fmt(v)} kWh`, name === 'site_8023' ? S.site_8023 : S.site_8024]}
+              formatter={(v, name) => [
+                `${fmt(v, sameMonthCfg.digits)} ${sameMonthCfg.unit}`,
+                name === sameMonthCfg.key8023 ? S.site_8023 : S.site_8024,
+              ]}
               labelFormatter={y => `${y}년 ${sameMonth}월`}
             />
-            <Legend formatter={v => v === 'site_8023' ? S.site_8023 : S.site_8024} wrapperStyle={{ color: '#9ca3af', fontSize: 13 }} />
-            <Line type="monotone" dataKey="site_8023" name="site_8023" stroke={C.site_8023} strokeWidth={2} dot={{ r: 4, fill: C.site_8023 }} />
-            <Line type="monotone" dataKey="site_8024" name="site_8024" stroke={C.site_8024} strokeWidth={2} dot={{ r: 4, fill: C.site_8024 }} />
+            <Legend
+              formatter={v => v === sameMonthCfg.key8023 ? S.site_8023 : S.site_8024}
+              wrapperStyle={{ color: '#9ca3af', fontSize: 13 }}
+            />
+            <Line type="monotone" dataKey={sameMonthCfg.key8023} name={sameMonthCfg.key8023} stroke={C.site_8023} strokeWidth={2} dot={{ r: 4, fill: C.site_8023 }} connectNulls={false} />
+            <Line type="monotone" dataKey={sameMonthCfg.key8024} name={sameMonthCfg.key8024} stroke={C.site_8024} strokeWidth={2} dot={{ r: 4, fill: C.site_8024 }} connectNulls={false} />
           </LineChart>
         </ResponsiveContainer>
       </div>
