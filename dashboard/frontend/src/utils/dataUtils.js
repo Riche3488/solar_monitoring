@@ -16,16 +16,32 @@ export function getMonthlyTotals(data) {
   for (const d of data) {
     if (d.generation_kwh === null) continue
     const key = `${d.year}-${String(d.month).padStart(2, '0')}`
-    if (!map[key]) map[key] = { key, year: d.year, month: d.month, site_8023: 0, site_8024: 0, hours_8023: null, hours_8024: null }
+    if (!map[key]) map[key] = {
+      key, year: d.year, month: d.month,
+      site_8023: 0, site_8024: 0, days_8023: 0, days_8024: 0,
+      hours_8023: null, hours_8024: null, hdays_8023: 0, hdays_8024: 0,
+    }
+    const suf = d.site_id.replace('site_', '')
     map[key][d.site_id] = (map[key][d.site_id] || 0) + d.generation_kwh
+    map[key]['days_' + suf] += 1
     if (d.generation_hours !== null) {
-      const hKey = 'hours_' + d.site_id.replace('site_', '')
+      const hKey = 'hours_' + suf
       map[key][hKey] = (map[key][hKey] ?? 0) + d.generation_hours
+      map[key]['hdays_' + suf] += 1
     }
   }
   return Object.values(map)
     .sort((a, b) => a.key.localeCompare(b.key))
-    .map(r => ({ ...r, ratio: r.site_8024 > 0 ? r.site_8023 / r.site_8024 : null }))
+    .map(r => ({
+      ...r,
+      // 일평균 발전량 (kWh/일) — 해당 월에 데이터가 있는 일수로 나눔
+      avg_site_8023: r.days_8023 > 0 ? r.site_8023 / r.days_8023 : null,
+      avg_site_8024: r.days_8024 > 0 ? r.site_8024 / r.days_8024 : null,
+      // 일평균 발전시간
+      avg_hours_8023: r.hdays_8023 > 0 ? r.hours_8023 / r.hdays_8023 : null,
+      avg_hours_8024: r.hdays_8024 > 0 ? r.hours_8024 / r.hdays_8024 : null,
+      ratio: r.site_8024 > 0 ? r.site_8023 / r.site_8024 : null,
+    }))
 }
 
 export function getAnnualTotals(data) {
