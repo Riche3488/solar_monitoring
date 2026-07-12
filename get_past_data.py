@@ -17,13 +17,13 @@ CSS_LOGIN_BTN = "button.v-btn--contained, button[type='submit']"
 XPATH_DATE_INPUT = '/html/body/div/div[1]/div[1]/main/div/div[2]/div/div[3]/div/div[2]/div/div/div/div/div[1]/div[2]/div[3]/div[2]/div/div/div[2]/div/div/input'
 XPATH_MONTHLY_TAB = '//*[@id="app"]/div[1]/div[1]/main/div/div[2]/div/div[3]/div/div[2]/div/div/div/div/div[1]/div[2]/div[1]/div/div/div[2]/div/div[3]'
 XPATH_EXCEL_BTN = '//*[@id="app"]/div[1]/div[1]/main/div/div[2]/div/div[3]/div/div[2]/div/div/div/div/div[1]/div[2]/div[3]/button[1]'
-# 달력 오버레이는 body의 마지막 자식 div로 텔레포트되는데, 포털에 채팅 위젯 등
-# 다른 고정 div가 추가되면 몇 번째 div인지 바뀐다. 그래서 인덱스는 클릭 전후
-# div 개수 변화로 동적으로 계산하고, 아래 템플릿에 채워 넣는다 (_select_date_in_picker 참고).
-XPATH_CAL_HEADER_BTN_TMPL = '/html/body/div/div[{n}]/div/div/div/div[1]/div/div/button'
-XPATH_CAL_PREV_BTN_TMPL = '/html/body/div/div[{n}]/div/div/div/div[1]/button[1]'
-XPATH_CAL_NEXT_BTN_TMPL = '/html/body/div/div[{n}]/div/div/div/div[1]/button[2]'
-XPATH_CAL_MID_DAY_TMPL = '/html/body/div/div[{n}]/div/div/div/div[2]/table/tbody/tr[3]/td[4]/button'
+# 달력은 body로 텔레포트되지 않고 페이지 안에 인라인으로 렌더링된다(Vuetify
+# v-date-picker 표준 클래스). 절대 XPath 대신 이 클래스들을 사용해 위치 변화에
+# 영향받지 않도록 한다.
+CSS_CAL_HEADER_VALUE = '.v-date-picker-header__value button'
+CSS_CAL_PREV_BTN = '.v-date-picker-header__left'
+CSS_CAL_NEXT_BTN = '.v-date-picker-header__right'
+CSS_CAL_DAY_BTN = '.v-date-picker-table--date button:not([disabled])'
 XPATH_DATE_DISPLAY = '/html/body/div/div[1]/div[1]/main/div/div[2]/div/div[3]/div/div[2]/div/div/div/div/div[1]/div[2]/div[3]/div[2]/div/div/div[2]/div'
 XPATH_SEARCH_BTN = '/html/body/div/div[1]/div[1]/main/div/div[2]/div/div[3]/div/div[2]/div/div/div/div/div[1]/div[2]/div[3]/button[2]'
 
@@ -162,79 +162,20 @@ def _login(page) -> None:
             raise
 
 
-_MARK_EXISTING_DIVS_JS = (
-    "Array.from(document.body.children).forEach(el => {"
-    " if (el.tagName === 'DIV') el.dataset.hesPre = '1'; })"
-)
-# 새로 추가된 div 중, 날짜 테이블(<table>)을 담고 있는 것을 달력으로 판단한다.
-# (채팅 위젯 등 다른 div가 비슷한 시점에 붙어도 table이 없으므로 걸러진다)
-_FIND_NEW_CALENDAR_DIV_JS = (
-    "Array.from(document.body.children).filter(el => el.tagName === 'DIV')"
-    ".findIndex(el => !el.dataset.hesPre && el.querySelector('table')) + 1"
-)
-
-
 def _select_date_in_picker(page, year: int, month: int) -> None:
     print(f"    [날짜] 피커 열기 ({year}-{month:02d})", flush=True)
-    page.evaluate(_MARK_EXISTING_DIVS_JS)
-
-    # 진단용: 클릭 대상이 실제로 무엇인지, 클릭 직후 화면이 어떻게 되는지 남긴다
-    try:
-        target_info = page.evaluate(
-            f"() => {{ const el = document.evaluate('{XPATH_DATE_INPUT}', document, null, "
-            "XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;"
-            " if (!el) return null;"
-            " const r = el.getBoundingClientRect();"
-            " return {tag: el.tagName, outerHTML: el.outerHTML.slice(0, 300), "
-            " rect: {x: r.x, y: r.y, w: r.width, h: r.height}, disabled: el.disabled, "
-            " readOnly: el.readOnly}; }}"
-        )
-        print(f"    [진단] 날짜 입력 요소: {target_info}", flush=True)
-    except Exception as diag_err:
-        print(f"    [진단] 날짜 입력 요소 덤프 실패: {diag_err}", flush=True)
-
     page.click(f'xpath={XPATH_DATE_INPUT}')
-    _safe_screenshot(page, "/tmp/debug_calendar_after_click.png", timeout=3000)
     try:
-        # 달력은 body의 새 자식 div로 텔레포트된다. 채팅 위젯 등 다른 고정 div가
-        # 비슷한 시점에 붙을 수 있으므로, "새로 추가되고 table을 담은" div를 기다린다.
-        page.wait_for_function(f"() => ({_FIND_NEW_CALENDAR_DIV_JS}) > 0", timeout=15000)
+        page.wait_for_selector(CSS_CAL_HEADER_VALUE, timeout=15000)
     except Exception:
-        # 진단용: 실패 시점의 화면과 body 하위 구조를 남겨서 선택자 변경 여부를 확인한다
         _safe_screenshot(page, "/tmp/debug_calendar_timeout.png")
-        try:
-            page.screenshot(path="/tmp/debug_calendar_timeout_full.png", full_page=True, timeout=5000)
-        except Exception as ss_err:
-            print(f"    [진단] 전체 페이지 스크린샷 실패: {ss_err}", flush=True)
-        try:
-            structure = page.evaluate(
-                "() => Array.from(document.body.children).map(el => "
-                "({tag: el.tagName, cls: el.className, html: el.outerHTML.slice(0, 500)}))"
-            )
-            print(f"    [진단] body 하위 구조: {structure}", flush=True)
-        except Exception as diag_err:
-            print(f"    [진단] body 구조 덤프 실패: {diag_err}", flush=True)
-        try:
-            # 텔레포트되지 않고 페이지 안쪽에 인라인으로 달력이 열렸을 가능성도 확인
-            inline_info = page.evaluate(
-                "() => ({ tableCount: document.querySelectorAll('table').length,"
-                " pickerLike: Array.from(document.querySelectorAll('[class*=picker],[class*=calendar],[class*=date]'))"
-                " .slice(0, 10).map(el => ({tag: el.tagName, cls: el.className})) })"
-            )
-            print(f"    [진단] 인라인 달력 탐색: {inline_info}", flush=True)
-        except Exception as diag_err:
-            print(f"    [진단] 인라인 달력 탐색 실패: {diag_err}", flush=True)
         raise
 
-    n = page.evaluate(_FIND_NEW_CALENDAR_DIV_JS)
-    header_xpath = XPATH_CAL_HEADER_BTN_TMPL.format(n=n)
-    prev_xpath = XPATH_CAL_PREV_BTN_TMPL.format(n=n)
-    next_xpath = XPATH_CAL_NEXT_BTN_TMPL.format(n=n)
-    mid_day_xpath = XPATH_CAL_MID_DAY_TMPL.format(n=n)
-    print(f"    [날짜] 달력 컨테이너: div[{n}]", flush=True)
+    header_loc = page.locator(CSS_CAL_HEADER_VALUE).first
+    prev_loc = page.locator(CSS_CAL_PREV_BTN).first
+    next_loc = page.locator(CSS_CAL_NEXT_BTN).first
 
     target = year * 12 + month
-    header_loc = page.locator(f'xpath={header_xpath}').first
     for _ in range(36):
         header_text = header_loc.inner_text().strip()
         print(f"    [날짜] 현재 달력: {header_text!r}", flush=True)
@@ -248,18 +189,18 @@ def _select_date_in_picker(page, year: int, month: int) -> None:
             break
         elif cur > target:
             print(f"    [날짜] 이전 달로 이동", flush=True)
-            page.click(f'xpath={prev_xpath}')
+            prev_loc.click()
         else:
             print(f"    [날짜] 다음 달로 이동", flush=True)
-            page.click(f'xpath={next_xpath}')
+            next_loc.click()
         # 헤더가 실제로 바뀔 때까지 대기 (최대 3초)
         for _ in range(20):
             page.wait_for_timeout(150)
             if header_loc.inner_text().strip() != header_text:
                 break
 
-    print(f"    [날짜] 중간 날짜 클릭 → 팝업 닫기", flush=True)
-    page.click(f'xpath={mid_day_xpath}')
+    print(f"    [날짜] 날짜 클릭 → 팝업 닫기", flush=True)
+    page.locator(CSS_CAL_DAY_BTN).first.click()
     page.wait_for_timeout(500)
 
 
