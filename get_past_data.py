@@ -17,10 +17,13 @@ CSS_LOGIN_BTN = "button.v-btn--contained, button[type='submit']"
 XPATH_DATE_INPUT = '/html/body/div/div[1]/div[1]/main/div/div[2]/div/div[3]/div/div[2]/div/div/div/div/div[1]/div[2]/div[3]/div[2]/div/div/div[2]/div/div/input'
 XPATH_MONTHLY_TAB = '//*[@id="app"]/div[1]/div[1]/main/div/div[2]/div/div[3]/div/div[2]/div/div/div/div/div[1]/div[2]/div[1]/div/div/div[2]/div/div[3]'
 XPATH_EXCEL_BTN = '//*[@id="app"]/div[1]/div[1]/main/div/div[2]/div/div[3]/div/div[2]/div/div/div/div/div[1]/div[2]/div[3]/button[1]'
-XPATH_CAL_HEADER_BTN = '/html/body/div/div[2]/div/div/div/div[1]/div/div/button'
-XPATH_CAL_PREV_BTN = '/html/body/div/div[2]/div/div/div/div[1]/button[1]'
-XPATH_CAL_NEXT_BTN = '/html/body/div/div[2]/div/div/div/div[1]/button[2]'
-XPATH_CAL_MID_DAY = '/html/body/div/div[2]/div/div/div/div[2]/table/tbody/tr[3]/td[4]/button'
+# 달력 오버레이는 body의 마지막 자식 div로 텔레포트되는데, 포털에 채팅 위젯 등
+# 다른 고정 div가 추가되면 몇 번째 div인지 바뀐다. 그래서 인덱스는 클릭 전후
+# div 개수 변화로 동적으로 계산하고, 아래 템플릿에 채워 넣는다 (_select_date_in_picker 참고).
+XPATH_CAL_HEADER_BTN_TMPL = '/html/body/div/div[{n}]/div/div/div/div[1]/div/div/button'
+XPATH_CAL_PREV_BTN_TMPL = '/html/body/div/div[{n}]/div/div/div/div[1]/button[1]'
+XPATH_CAL_NEXT_BTN_TMPL = '/html/body/div/div[{n}]/div/div/div/div[1]/button[2]'
+XPATH_CAL_MID_DAY_TMPL = '/html/body/div/div[{n}]/div/div/div/div[2]/table/tbody/tr[3]/td[4]/button'
 XPATH_DATE_DISPLAY = '/html/body/div/div[1]/div[1]/main/div/div[2]/div/div[3]/div/div[2]/div/div/div/div/div[1]/div[2]/div[3]/div[2]/div/div/div[2]/div'
 XPATH_SEARCH_BTN = '/html/body/div/div[1]/div[1]/main/div/div[2]/div/div[3]/div/div[2]/div/div/div/div/div[1]/div[2]/div[3]/button[2]'
 
@@ -159,21 +162,24 @@ def _login(page) -> None:
             raise
 
 
-def _remove_chat_widget(page) -> None:
-    """포털에 새로 추가된 EasyConnect 채팅 위젯(우하단 고정)이 날짜 피커 렌더링
-    영역과 겹쳐 캘린더가 열리지 않는 문제를 막기 위해 제거한다."""
-    try:
-        page.evaluate("document.getElementById('easyconnect-fab-wrapper')?.remove()")
-    except Exception:
-        pass
+def _body_div_count(page) -> int:
+    return page.evaluate(
+        "Array.from(document.body.children).filter(el => el.tagName === 'DIV').length"
+    )
 
 
 def _select_date_in_picker(page, year: int, month: int) -> None:
     print(f"    [날짜] 피커 열기 ({year}-{month:02d})", flush=True)
-    _remove_chat_widget(page)
+    before = _body_div_count(page)
     page.click(f'xpath={XPATH_DATE_INPUT}')
     try:
-        page.wait_for_selector(f'xpath={XPATH_CAL_HEADER_BTN}', timeout=15000)
+        # 달력은 body의 새 자식 div로 텔레포트된다. 채팅 위젯 등 다른 고정 div가
+        # 이미 붙어 있을 수 있으므로 고정 인덱스 대신 "새로 늘어난 div"를 기다린다.
+        page.wait_for_function(
+            "(n) => Array.from(document.body.children).filter(el => el.tagName === 'DIV').length > n",
+            arg=before,
+            timeout=15000,
+        )
     except Exception:
         # 진단용: 실패 시점의 화면과 body 하위 구조를 남겨서 선택자 변경 여부를 확인한다
         _safe_screenshot(page, "/tmp/debug_calendar_timeout.png")
@@ -187,8 +193,15 @@ def _select_date_in_picker(page, year: int, month: int) -> None:
             print(f"    [진단] body 구조 덤프 실패: {diag_err}", flush=True)
         raise
 
+    n = _body_div_count(page)
+    header_xpath = XPATH_CAL_HEADER_BTN_TMPL.format(n=n)
+    prev_xpath = XPATH_CAL_PREV_BTN_TMPL.format(n=n)
+    next_xpath = XPATH_CAL_NEXT_BTN_TMPL.format(n=n)
+    mid_day_xpath = XPATH_CAL_MID_DAY_TMPL.format(n=n)
+    print(f"    [날짜] 달력 컨테이너: div[{n}]", flush=True)
+
     target = year * 12 + month
-    header_loc = page.locator(f'xpath={XPATH_CAL_HEADER_BTN}').first
+    header_loc = page.locator(f'xpath={header_xpath}').first
     for _ in range(36):
         header_text = header_loc.inner_text().strip()
         print(f"    [날짜] 현재 달력: {header_text!r}", flush=True)
@@ -202,10 +215,10 @@ def _select_date_in_picker(page, year: int, month: int) -> None:
             break
         elif cur > target:
             print(f"    [날짜] 이전 달로 이동", flush=True)
-            page.click(f'xpath={XPATH_CAL_PREV_BTN}')
+            page.click(f'xpath={prev_xpath}')
         else:
             print(f"    [날짜] 다음 달로 이동", flush=True)
-            page.click(f'xpath={XPATH_CAL_NEXT_BTN}')
+            page.click(f'xpath={next_xpath}')
         # 헤더가 실제로 바뀔 때까지 대기 (최대 3초)
         for _ in range(20):
             page.wait_for_timeout(150)
@@ -213,7 +226,7 @@ def _select_date_in_picker(page, year: int, month: int) -> None:
                 break
 
     print(f"    [날짜] 중간 날짜 클릭 → 팝업 닫기", flush=True)
-    page.click(f'xpath={XPATH_CAL_MID_DAY}')
+    page.click(f'xpath={mid_day_xpath}')
     page.wait_for_timeout(500)
 
 
