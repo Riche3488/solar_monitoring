@@ -145,21 +145,44 @@ def _login(page) -> None:
 
     _safe_screenshot(page, "/tmp/debug_04_after_login_click.png")
 
-    # URL 변경 또는 로그인 입력창 소멸 중 먼저 충족되는 조건 대기
-    try:
-        page.wait_for_url(lambda url: "#/login" not in url, timeout=30000)
-        print(f"[4] 로그인 완료 (URL 변경) → {page.url}", flush=True)
-    except Exception:
-        _safe_screenshot(page, "/tmp/debug_05_login_timeout.png")
-        # URL이 바뀌지 않았더라도 폼이 사라졌으면 성공으로 간주
+    # URL 변경 또는 로그인 입력창 소멸 중 먼저 충족되는 조건 대기.
+    # 로그인 직후 공지사항 등 새로운 오버레이가 떠서 내비게이션을 막는 경우가
+    # 있어, 대기를 짧게 나누고 매 회차마다 오버레이 닫기를 시도한다.
+    login_succeeded = False
+    last_err: Exception | None = None
+    for _ in range(6):
+        try:
+            page.wait_for_url(lambda url: "#/login" not in url, timeout=5000)
+            login_succeeded = True
+            break
+        except Exception as e:
+            last_err = e
         if page.locator(f'xpath={XPATH_LOGIN_ID}').count() == 0:
-            print(f"[4] 로그인 완료 (폼 소멸) → {page.url}", flush=True)
-        else:
-            # 오류 메시지 캡처
-            err_texts = page.locator('.v-messages__message, .error--text, [role="alert"]').all_inner_texts()
-            if err_texts:
-                print(f"[오류] 로그인 실패 메시지: {err_texts}", flush=True)
-            raise
+            login_succeeded = True
+            break
+        if page.locator('.v-overlay--active').count() > 0:
+            print("[4] 로그인 후 오버레이 감지 → 닫기 시도", flush=True)
+            try:
+                page.locator('.v-overlay--active button').first.click(timeout=3000)
+            except Exception:
+                page.keyboard.press("Escape")
+            page.wait_for_timeout(500)
+
+    if login_succeeded:
+        print(f"[4] 로그인 완료 → {page.url}", flush=True)
+    else:
+        _safe_screenshot(page, "/tmp/debug_05_login_timeout.png")
+        # 오류 메시지 및 화면 텍스트 캡처 (스크린샷 다운로드 없이도 원인 파악 가능하도록)
+        err_texts = page.locator('.v-messages__message, .error--text, [role="alert"]').all_inner_texts()
+        if err_texts:
+            print(f"[오류] 로그인 실패 메시지: {err_texts}", flush=True)
+        try:
+            body_text = page.locator('body').inner_text()[:1000]
+            print(f"[디버그] 타임아웃 시 현재 URL: {page.url}", flush=True)
+            print(f"[디버그] 타임아웃 시 화면 텍스트: {body_text!r}", flush=True)
+        except Exception:
+            pass
+        raise last_err
 
 
 def _select_date_in_picker(page, year: int, month: int) -> None:
