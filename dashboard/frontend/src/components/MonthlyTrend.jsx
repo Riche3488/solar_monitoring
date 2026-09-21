@@ -22,6 +22,7 @@ const METRICS = {
 export default function MonthlyTrend({ data }) {
   const [metric, setMetric] = useState('cumulative')
   const [normalized, setNormalized] = useState(false)
+  const [viewType, setViewType] = useState('table') // 'chart' | 'table'
   const monthly = useMemo(() => getMonthlyTotals(data), [data])
   const metricCfg = METRICS[metric]
 
@@ -56,6 +57,24 @@ export default function MonthlyTrend({ data }) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-4">
         <div className="flex gap-1">
+          {[
+            { id: 'chart', label: '차트 보기' },
+            { id: 'table', label: '표 보기' },
+          ].map(v => (
+            <button
+              key={v.id}
+              onClick={() => setViewType(v.id)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                viewType === v.id
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              }`}
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-1">
           {Object.entries(METRICS).map(([key, cfg]) => (
             <button
               key={key}
@@ -70,17 +89,53 @@ export default function MonthlyTrend({ data }) {
             </button>
           ))}
         </div>
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={normalized}
-            onChange={e => setNormalized(e.target.checked)}
-            className="w-4 h-4 accent-blue-500"
-          />
-          <span className="text-gray-300 text-sm">정규화 표시 (초기 12개월 평균 대비 %)</span>
-        </label>
+        {viewType === 'chart' && (
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={normalized}
+              onChange={e => setNormalized(e.target.checked)}
+              className="w-4 h-4 accent-blue-500"
+            />
+            <span className="text-gray-300 text-sm">정규화 표시 (초기 12개월 평균 대비 %)</span>
+          </label>
+        )}
       </div>
 
+      {viewType === 'table' ? (
+        <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-700">
+            <h2 className="font-semibold text-white">
+              월별 발전량 요약 ({metricCfg.label})
+            </h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-gray-400 text-xs border-b border-gray-700">
+                  <th className="px-5 py-3 text-left">연월</th>
+                  <th className="px-5 py-3 text-right">{S.site_8023} ({metricCfg.unit})</th>
+                  <th className="px-5 py-3 text-right">{S.site_8024} ({metricCfg.unit})</th>
+                  <th className="px-5 py-3 text-right">비율</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...monthly].reverse().map(row => (
+                  <tr key={row.key} className="border-b border-gray-700/40 hover:bg-gray-700/30 transition">
+                    <td className="px-5 py-2.5 font-medium text-white whitespace-nowrap">{row.year}년 {row.month}월</td>
+                    <td className="px-5 py-2.5 text-right text-blue-300">{fmt(row[metricCfg.key8023], metricCfg.digits)}</td>
+                    <td className="px-5 py-2.5 text-right text-orange-300">{fmt(row[metricCfg.key8024], metricCfg.digits)}</td>
+                    <td className={`px-5 py-2.5 text-right font-medium ${row.ratio === null ? 'text-gray-500' : Math.abs(row.ratio - 1) > 0.15 ? 'text-red-400' : 'text-green-400'}`}>
+                      {row.ratio !== null ? `${fmt(row.ratio * 100, 1)}%` : '-'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+      <>
       <div className="bg-gray-800 rounded-xl border border-gray-700 p-5">
         <h2 className="font-semibold text-white mb-4">
           {metricCfg.title} {normalized ? '→ 정규화 (%)' : ''}
@@ -148,6 +203,8 @@ export default function MonthlyTrend({ data }) {
           </LineChart>
         </ResponsiveContainer>
       </div>
+      </>
+      )}
     </div>
   )
 }

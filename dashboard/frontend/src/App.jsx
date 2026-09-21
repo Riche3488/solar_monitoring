@@ -2,14 +2,12 @@ import { useState } from 'react'
 import { useData } from './hooks/useData'
 import { SITE_LABELS } from './utils/dataUtils'
 import OverviewCards from './components/OverviewCards'
-import DailyComparison from './components/DailyComparison'
 import MonthlyTrend from './components/MonthlyTrend'
 import AnnualAnalysis from './components/AnnualAnalysis'
 import AnomalyDetection from './components/AnomalyDetection'
 
 const TABS = [
   { id: 'overview', label: '개요' },
-  { id: 'daily', label: '일별 비교' },
   { id: 'monthly', label: '월별 추이' },
   { id: 'annual', label: '연간 분석' },
   { id: 'anomaly', label: '이상 감지' },
@@ -71,7 +69,6 @@ export default function App() {
 
       <main className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
         {activeTab === 'overview' && <OverviewCards data={data} />}
-        {activeTab === 'daily' && <DailyComparison data={data} />}
         {activeTab === 'monthly' && <MonthlyTrend data={data} />}
         {activeTab === 'annual' && <AnnualAnalysis data={data} />}
         {activeTab === 'anomaly' && <AnomalyDetection data={data} />}

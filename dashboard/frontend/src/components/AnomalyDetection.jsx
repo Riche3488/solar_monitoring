@@ -14,6 +14,9 @@ const TOOLTIP_STYLE = {
 
 export default function AnomalyDetection({ data }) {
   const [threshold, setThreshold] = useState(15)
+  const [customYAxis, setCustomYAxis] = useState(false)
+  const [yMin, setYMin] = useState(0.95)
+  const [yMax, setYMax] = useState(1)
 
   const allDaily = useMemo(() => getDailyByDate(data), [data])
   const { mean, std } = useMemo(() => computeRatioStats(allDaily), [allDaily])
@@ -65,6 +68,32 @@ export default function AnomalyDetection({ data }) {
             </div>
           </div>
         </div>
+        <div className="flex flex-wrap items-center gap-4 mt-5 pt-4 border-t border-gray-700">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={customYAxis}
+              onChange={e => setCustomYAxis(e.target.checked)}
+              className="w-4 h-4 accent-blue-500"
+            />
+            <span className="text-gray-300 text-sm">Y축 범위 직접 설정</span>
+          </label>
+          {customYAxis && (
+            <div className="flex items-center gap-2 text-sm">
+              <input
+                type="number" step="0.01" value={yMin}
+                onChange={e => setYMin(Number(e.target.value))}
+                className="w-20 bg-gray-700 text-gray-200 rounded-lg px-2 py-1.5 border border-gray-600 focus:outline-none"
+              />
+              <span className="text-gray-500">~</span>
+              <input
+                type="number" step="0.01" value={yMax}
+                onChange={e => setYMax(Number(e.target.value))}
+                className="w-20 bg-gray-700 text-gray-200 rounded-lg px-2 py-1.5 border border-gray-600 focus:outline-none"
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="bg-gray-800 rounded-xl border border-gray-700 p-5">
@@ -86,7 +115,12 @@ export default function AnomalyDetection({ data }) {
               angle={-45}
               textAnchor="end"
             />
-            <YAxis tick={{ fill: '#9ca3af', fontSize: 11 }} domain={['auto', 'auto']} tickFormatter={v => v.toFixed(2)} />
+            <YAxis
+              tick={{ fill: '#9ca3af', fontSize: 11 }}
+              domain={customYAxis ? [yMin, yMax] : ['auto', 'auto']}
+              allowDataOverflow={customYAxis}
+              tickFormatter={v => v.toFixed(2)}
+            />
             <Tooltip
               {...TOOLTIP_STYLE}
               formatter={v => [fmt(v, 4), `비율 (${S.site_8023}/${S.site_8024})`]}

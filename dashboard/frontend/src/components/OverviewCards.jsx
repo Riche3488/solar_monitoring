@@ -1,5 +1,5 @@
-import { useMemo } from 'react'
-import { getMonthlyTotals, getAnnualTotals, getLatestDay, getLastNDays, getKSTTargetDate, SITE_LABELS, fmt } from '../utils/dataUtils'
+import { useState, useMemo } from 'react'
+import { getMonthlyTotals, getAnnualTotals, getLatestDay, getLastNDays, getDaysForMonth, getAvailableMonths, getKSTTargetDate, SITE_LABELS, fmt } from '../utils/dataUtils'
 
 const S = SITE_LABELS
 
@@ -19,6 +19,19 @@ export default function OverviewCards({ data }) {
   const kstTarget = useMemo(() => getKSTTargetDate(), [])
   const latestDay = useMemo(() => getLatestDay(data, kstTarget.dateStr), [data, kstTarget])
   const last10Days = useMemo(() => getLastNDays(data, 10, kstTarget.dateStr), [data, kstTarget])
+
+  const months = useMemo(() => getAvailableMonths(data), [data])
+  const [viewMode, setViewMode] = useState('10days') // '10days' | 'month'
+  const [selectedMonth, setSelectedMonth] = useState(() => months[months.length - 1] ?? '')
+  const [my, mm] = selectedMonth ? selectedMonth.split('-').map(Number) : [0, 0]
+  const monthDays = useMemo(
+    () => viewMode === 'month' ? [...getDaysForMonth(data, my, mm)].reverse() : [],
+    [data, viewMode, my, mm]
+  )
+  const tableRows = viewMode === 'month' ? monthDays : last10Days
+  const tableTitle = viewMode === 'month' && selectedMonth
+    ? `${my}년 ${mm}월 발전량`
+    : '최근 10일 발전량'
 
   const latestMonthly = monthly[monthly.length - 1]
   const curYear = annual[annual.length - 1]
@@ -77,8 +90,40 @@ export default function OverviewCards({ data }) {
       </div>
 
       <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-700">
-          <h2 className="font-semibold text-white text-sm sm:text-base">최근 10일 발전량</h2>
+        <div className="px-4 py-3 border-b border-gray-700 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-semibold text-white text-sm sm:text-base">{tableTitle}</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex gap-1">
+              {[
+                { id: '10days', label: '최근 10일' },
+                { id: 'month', label: '월별 보기' },
+              ].map(m => (
+                <button
+                  key={m.id}
+                  onClick={() => setViewMode(m.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition ${
+                    viewMode === m.id
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+            {viewMode === 'month' && (
+              <select
+                value={selectedMonth}
+                onChange={e => setSelectedMonth(e.target.value)}
+                className="bg-gray-700 text-gray-200 rounded-lg px-3 py-2 text-xs sm:text-sm border border-gray-600 focus:outline-none"
+              >
+                {[...months].reverse().map(m => {
+                  const [y, mo] = m.split('-')
+                  return <option key={m} value={m}>{y}년 {parseInt(mo)}월</option>
+                })}
+              </select>
+            )}
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs sm:text-sm">
@@ -91,7 +136,7 @@ export default function OverviewCards({ data }) {
               </tr>
             </thead>
             <tbody>
-              {last10Days.map(row => {
+              {tableRows.map(row => {
                 const abnormal = row.ratio !== null && Math.abs(row.ratio - 1) > 0.15
                 const isToday = row.year === kstTarget.year && row.month === kstTarget.month && row.day === kstTarget.day
                 return (

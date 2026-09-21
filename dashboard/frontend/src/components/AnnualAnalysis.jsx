@@ -61,6 +61,52 @@ export default function AnnualAnalysis({ data }) {
 
   return (
     <div className="space-y-6">
+      <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-700">
+          <h2 className="font-semibold text-white">연간 발전량 요약</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-gray-400 text-xs border-b border-gray-700">
+                <th className="px-5 py-3 text-left">연도</th>
+                <th className="px-5 py-3 text-right">{S.site_8023} (kWh)</th>
+                <th className="px-5 py-3 text-right">일평균 발전시간</th>
+                <th className="px-5 py-3 text-right">전년비 (발전시간)</th>
+                <th className="px-5 py-3 text-right">{S.site_8024} (kWh)</th>
+                <th className="px-5 py-3 text-right">일평균 발전시간</th>
+                <th className="px-5 py-3 text-right">전년비 (발전시간)</th>
+                <th className="px-5 py-3 text-right">비율</th>
+                <th className="px-5 py-3 text-right">데이터</th>
+              </tr>
+            </thead>
+            <tbody>
+              {annualWithYoY.map(row => (
+                <tr key={row.year} className="border-b border-gray-700/40 hover:bg-gray-700/30 transition">
+                  <td className="px-5 py-2.5 font-medium text-white">{row.year}년</td>
+                  <td className="px-5 py-2.5 text-right text-blue-300">{fmt(row.site_8023)}</td>
+                  <td className="px-5 py-2.5 text-right text-gray-300">{row.avg_hours_8023 !== null ? `${fmt(row.avg_hours_8023, 1)}h` : '-'}</td>
+                  <td className={`px-5 py-2.5 text-right font-medium ${row.yoy8023 === null ? 'text-gray-500' : row.yoy8023 >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {row.yoy8023 !== null ? `${row.yoy8023 > 0 ? '+' : ''}${fmt(row.yoy8023, 1)}%` : '-'}
+                  </td>
+                  <td className="px-5 py-2.5 text-right text-orange-300">{fmt(row.site_8024)}</td>
+                  <td className="px-5 py-2.5 text-right text-gray-300">{row.avg_hours_8024 !== null ? `${fmt(row.avg_hours_8024, 1)}h` : '-'}</td>
+                  <td className={`px-5 py-2.5 text-right font-medium ${row.yoy8024 === null ? 'text-gray-500' : row.yoy8024 >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {row.yoy8024 !== null ? `${row.yoy8024 > 0 ? '+' : ''}${fmt(row.yoy8024, 1)}%` : '-'}
+                  </td>
+                  <td className={`px-5 py-2.5 text-right font-medium ${row.ratio === null ? 'text-gray-500' : Math.abs(row.ratio - 1) > 0.15 ? 'text-red-400' : 'text-green-400'}`}>
+                    {row.ratio !== null ? `${fmt(row.ratio * 100, 1)}%` : '-'}
+                  </td>
+                  <td className="px-5 py-2.5 text-right text-xs">
+                    {row.months_count < 12 ? <span className="text-yellow-500">{row.months_count}개월</span> : <span className="text-gray-500">12개월</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <div className="bg-gray-800 rounded-xl border border-gray-700 p-5">
         <h2 className="font-semibold text-white mb-4">연간 총 발전량 (kWh)</h2>
         <p className="text-gray-500 text-xs mb-3">* 표시 연도 = 해당 연도 데이터 일부만 존재</p>
@@ -199,52 +245,6 @@ export default function AnnualAnalysis({ data }) {
             <Line type="monotone" dataKey={sameMonthCfg.key8024} name={sameMonthCfg.key8024} stroke={C.site_8024} strokeWidth={2} dot={{ r: 4, fill: C.site_8024 }} connectNulls={false} />
           </LineChart>
         </ResponsiveContainer>
-      </div>
-
-      <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-700">
-          <h2 className="font-semibold text-white">연간 발전량 요약</h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-gray-400 text-xs border-b border-gray-700">
-                <th className="px-5 py-3 text-left">연도</th>
-                <th className="px-5 py-3 text-right">{S.site_8023} (kWh)</th>
-                <th className="px-5 py-3 text-right">일평균 발전시간</th>
-                <th className="px-5 py-3 text-right">전년비 (발전시간)</th>
-                <th className="px-5 py-3 text-right">{S.site_8024} (kWh)</th>
-                <th className="px-5 py-3 text-right">일평균 발전시간</th>
-                <th className="px-5 py-3 text-right">전년비 (발전시간)</th>
-                <th className="px-5 py-3 text-right">비율</th>
-                <th className="px-5 py-3 text-right">데이터</th>
-              </tr>
-            </thead>
-            <tbody>
-              {annualWithYoY.map(row => (
-                <tr key={row.year} className="border-b border-gray-700/40 hover:bg-gray-700/30 transition">
-                  <td className="px-5 py-2.5 font-medium text-white">{row.year}년</td>
-                  <td className="px-5 py-2.5 text-right text-blue-300">{fmt(row.site_8023)}</td>
-                  <td className="px-5 py-2.5 text-right text-gray-300">{row.avg_hours_8023 !== null ? `${fmt(row.avg_hours_8023, 1)}h` : '-'}</td>
-                  <td className={`px-5 py-2.5 text-right font-medium ${row.yoy8023 === null ? 'text-gray-500' : row.yoy8023 >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {row.yoy8023 !== null ? `${row.yoy8023 > 0 ? '+' : ''}${fmt(row.yoy8023, 1)}%` : '-'}
-                  </td>
-                  <td className="px-5 py-2.5 text-right text-orange-300">{fmt(row.site_8024)}</td>
-                  <td className="px-5 py-2.5 text-right text-gray-300">{row.avg_hours_8024 !== null ? `${fmt(row.avg_hours_8024, 1)}h` : '-'}</td>
-                  <td className={`px-5 py-2.5 text-right font-medium ${row.yoy8024 === null ? 'text-gray-500' : row.yoy8024 >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {row.yoy8024 !== null ? `${row.yoy8024 > 0 ? '+' : ''}${fmt(row.yoy8024, 1)}%` : '-'}
-                  </td>
-                  <td className={`px-5 py-2.5 text-right font-medium ${row.ratio === null ? 'text-gray-500' : Math.abs(row.ratio - 1) > 0.15 ? 'text-red-400' : 'text-green-400'}`}>
-                    {row.ratio !== null ? `${fmt(row.ratio * 100, 1)}%` : '-'}
-                  </td>
-                  <td className="px-5 py-2.5 text-right text-xs">
-                    {row.months_count < 12 ? <span className="text-yellow-500">{row.months_count}개월</span> : <span className="text-gray-500">12개월</span>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
       </div>
     </div>
   )

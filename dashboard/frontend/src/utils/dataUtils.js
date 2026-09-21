@@ -69,23 +69,6 @@ export function getAnnualTotals(data) {
     }))
 }
 
-export function getDailyForMonth(data, year, month) {
-  const map = {}
-  for (const d of data) {
-    if (d.year !== year || d.month !== month) continue
-    if (!map[d.day]) map[d.day] = { day: d.day, site_8023: null, site_8024: null }
-    map[d.day][d.site_id] = d.generation_kwh
-  }
-  return Object.values(map)
-    .sort((a, b) => a.day - b.day)
-    .map(d => ({
-      ...d,
-      ratio: d.site_8023 !== null && d.site_8024 !== null && d.site_8024 > 0
-        ? d.site_8023 / d.site_8024
-        : null,
-    }))
-}
-
 export function getDailyByDate(data) {
   const map = {}
   for (const d of data) {
@@ -148,6 +131,10 @@ export function getLastNDays(data, n = 10, maxDateStr = null) {
         ? d.site_8023 / d.site_8024
         : null,
     }))
+}
+
+export function getDaysForMonth(data, year, month) {
+  return getDailyByDate(data).filter(d => d.year === year && d.month === month)
 }
 
 export function computeRatioStats(dailyAll) {
