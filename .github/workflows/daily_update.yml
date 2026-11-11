@@ -7,13 +7,57 @@ on:
     # 전혀 기록되지 않는 문제가 있었다. 하루 중 여러 시각에 재시도하도록 늘리고,
     # 매 정각(0분)은 전 세계적으로 큐가 몰려 지연이 커지므로 분(minute)도
     # 정각을 피해 분산시킨다.
+    #
+    # 그래도 GitHub 스케줄러는 예약 실행을 수 시간 지연시키거나 아예 건너뛴다
+    # (예: 2026-09-28 12:43/17:17 실행 누락 → 19:09 KST에야 첫 실행).
+    # 그래서 정시 실행은 외부 스케줄러(cron-job.org 등)가 GitHub API로
+    # workflow_dispatch를 호출하는 방식을 기본으로 하고, 아래 예약 실행은
+    # 외부 호출이 실패했을 때를 위한 백업으로만 둔다. 외부 호출로 최근
+    # 3시간 안에 이미 갱신됐다면 예약 실행은 아무것도 하지 않고 종료한다.
     - cron: '43 3 * * *'   # 12:43 KST 무렵 — 낮 동안 부분 데이터 갱신
     - cron: '17 8 * * *'   # 17:17 KST 무렵 — 기존 예약 시각 유지
     - cron: '38 11 * * *'  # 20:38 KST 무렵 — 최종 마감 데이터 확보(위 두 번의 실행이 지연/실패해도 보완)
-  workflow_dispatch:         # 수동 실행
+  workflow_dispatch:         # 수동 실행 / 외부 스케줄러 호출
+
+# 외부 호출과 예약 실행이 겹쳐 동시에 커밋/푸시하다 충돌하지 않도록 순차 실행
+concurrency:
+  group: daily-update
+  cancel-in-progress: false
 
 jobs:
+  # 예약 실행(백업)일 때만: 최근 3시간 안에 이미 데이터가 갱신됐으면 건너뛴다
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.recent.outputs.skip }}
+    steps:
+      - name: Checkout
+        if: github.event_name == 'schedule'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 50
+
+      - name: Check recent data update
+        id: recent
+        run: |
+          if [ "${{ github.event_name }}" != "schedule" ]; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          last=$(git log -1 --format=%ct -- past_data/ 2>/dev/null)
+          now=$(date +%s)
+          age=$(( now - ${last:-0} ))
+          echo "마지막 데이터 갱신: ${age}초 전"
+          if [ "$age" -lt 10800 ]; then
+            echo "최근 3시간 내 갱신됨 — 예약(백업) 실행 건너뜀"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
   update-and-deploy:
+    needs: check
+    if: needs.check.outputs.skip != 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write        # past_data xlsx 커밋용
